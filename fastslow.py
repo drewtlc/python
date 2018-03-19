@@ -154,6 +154,23 @@ class CalcResult:
             ax.set_title(key)
         matplotlib.pyplot.show() if (file=="") else matplotlib.pyplot.savefig(file)
         return
+    def boxplots(calcResults, file = ""):
+        figWidth = 8
+        figHeight = 8
+        keys = list(calcResults.keys())
+        keys.sort()
+        fig = matplotlib.pyplot.figure(figsize=(figWidth, figHeight*len(keys)))
+        for index in range(len(keys)):
+            key = keys[index]
+            calcResult = calcResults[key]
+            data = list()
+            data.append(calcResult.numbersM)
+            data.append(calcResult.numbersW)
+            ax = fig.add_subplot(len(keys), 1, index + 1)
+            ax.boxplot(data, labels=["Мужчины", "Женщины"])
+            ax.set_title(key)
+        matplotlib.pyplot.show() if (file=="") else matplotlib.pyplot.savefig(file)
+        return
 
 # Основная программа (А.П.)
 def main():
@@ -172,8 +189,12 @@ def main():
     #groupedValues = GroupedPoints.dataPointsWithValue(groupedData)
     print(groupedData)
     res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
-    CalcResult.write(res)
-    CalcResult.diagrams(res, "APResults.png")
+    # Запись в файл с разделителями
+    #CalcResult.write(res)
+    # Вывод диаграмм
+    #CalcResult.diagrams(res, "APResults_diagrams.png")
+    # Вывод ящиков с усами
+    CalcResult.boxplots(res, "APResults_boxplots.png")
     return
 
 main()
