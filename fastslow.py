@@ -7,6 +7,7 @@ from functools import reduce
 import numpy
 import scipy.stats
 from base_module import Tools, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
+import matplotlib.pyplot
 
 class CalcResult:
     percentiles = [25, 50, 75]
@@ -25,6 +26,8 @@ class CalcResult:
         self.mannwhitneyu = None
         self.diagramM = None
         self.diagramW = None
+        self.numbersM = None
+        self.numbersW = None
     def __str__(self):
         result = ""
         result += "kstestM      = "+str(self.kstestM)+"\n"
@@ -109,6 +112,8 @@ class CalcResult:
             tests.mannwhitneyu = scipy.stats.mannwhitneyu(numbersM, numbersW)
             tests.diagramM = scipy.stats.cumfreq(numbersM)
             tests.diagramW = scipy.stats.cumfreq(numbersW)
+            tests.numbersM = numbersM.copy()
+            tests.numbersW = numbersW.copy()
             #print(tests.diagramM)
             #print(keyFirstPart)
             #print(tests)
@@ -125,6 +130,30 @@ class CalcResult:
                 calcResult = calcResults[key]
                 #print(key)
                 file.write(str(key)+";"+calcResult.rowStr()+"\n")
+        return
+    def diagrams(calcResults, file):
+        colorM = "blue"
+        colorW = "red"
+        alpha = 0.5
+        figWidth = 10
+        figHeight = 8
+        keys = list(calcResults.keys())
+        keys.sort()
+        fig = matplotlib.pyplot.figure(figsize=(figWidth, figHeight*len(keys)))
+        for index in range(len(keys)):
+            key = keys[index]
+            calcResult = calcResults[key]
+            # Plot histogram
+            ax = fig.add_subplot(len(keys), 1, index+1)
+            ax.hist(calcResult.numbersM, len(calcResult.diagramM.cumcount), color=matplotlib.colors.to_rgba(colorM, alpha))
+            ax.hist(calcResult.numbersW, len(calcResult.diagramW.cumcount), color=matplotlib.colors.to_rgba(colorW, alpha))
+            ax.plot(calcResult.describeM.mean, 10, "bo")
+            ax.plot(calcResult.describeW.mean, 10, "ro")
+            ax.plot(calcResult.percentilesM[len(calcResult.percentilesM)//2], 10, "b^")
+            ax.plot(calcResult.percentilesW[len(calcResult.percentilesW)//2], 10, "r^")
+            ax.legend(["Среденее для мужчин", "Среденее для женщин", "Медиана для мужчин", "Медиана для женщин", "Распределение для мужчин", "Распределение для женщин"])
+            ax.set_title(key)
+        matplotlib.pyplot.show() if (file=="") else matplotlib.pyplot.savefig(file)
         return
 
 # Основная программа (А.П.)
@@ -145,6 +174,7 @@ def main():
     print(groupedData)
     res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
     CalcResult.write(res)
+    CalcResult.diagrams(res, "APResults.png")
     return
 
 main()

@@ -227,40 +227,36 @@ class GroupedPoints:
     def dataPointsWithValue(groupedDataPoints): # Из списка точек данных строим список числовых значений
         result = GroupedPoints()
         result.attrGroup = groupedDataPoints.attrGroup.copy()
-        for item in groupedDataPoints.valueDic.items():
-            result.valueDic[item[0]] = list(map(lambda dp: dp.value, list(filter(lambda dp: dp.isFloat == True, item[1]))))
+        for key, value in groupedDataPoints.valueDic.items():
+            result.valueDic[key] = list(map(lambda dp: dp.value, list(filter(lambda dp: dp.isFloat == True, value))))
         return result
     def percentiles(groupedDataPoints, percentiles):
         # Из сгруппированных точек строим сгруппированные списки числовых значений
         groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
         result = GroupedPoints()
         result.attrGroup = groupedPointsWithValue.attrGroup.copy() + percentiles.copy() + ["count"]
-        for item in groupedPointsWithValue.valueDic.items():
-            numbers = groupedPointsWithValue.valueDic[item[0]]
-            result.valueDic[item[0]] = (list() if len(numbers)==0 else list(numpy.percentile(numpy.array(numbers), percentiles)))+[len(numbers)]
+        for key, numbers in groupedPointsWithValue.valueDic.items():
+            result.valueDic[key] = (list() if len(numbers)==0 else list(numpy.percentile(numpy.array(numbers), percentiles)))+[len(numbers)]
         return result
     def kstest(groupedDataPoints):
         groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
         result = GroupedPoints()
         result.attrGroup = groupedPointsWithValue.attrGroup.copy() + ["KS D", "KS p-value"]
-        for item in groupedPointsWithValue.valueDic.items():
-            numbers = groupedPointsWithValue.valueDic[item[0]]
-            result.valueDic[item[0]] = list(scipy.stats.kstest(numbers, "norm"))
+        for key, numbers in groupedPointsWithValue.valueDic.items():
+            result.valueDic[key] = list(scipy.stats.kstest(numbers, "norm"))
         return result
     def shapiro(groupedDataPoints):
         groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
         result = GroupedPoints()
         result.attrGroup = groupedPointsWithValue.attrGroup.copy() + ["W", "p-value", "Distrib"]
-        for item in groupedPointsWithValue.valueDic.items():
-            numbers = groupedPointsWithValue.valueDic[item[0]]
+        for key, numbers in groupedPointsWithValue.valueDic.items():
             tResult = list(scipy.stats.shapiro(numbers))
-            result.valueDic[item[0]] = tResult + ["normal" if tResult[1]>0.05 else "not normal"]
+            result.valueDic[key] = tResult + ["normal" if tResult[1]>0.05 else "not normal"]
         return result
     def describe(groupedDataPoints):
         groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
         result = GroupedPoints()
         result.attrGroup = groupedPointsWithValue.attrGroup.copy() # + ["KS D", "KS p-value"]
-        for item in groupedPointsWithValue.valueDic.items():
-            numbers = groupedPointsWithValue.valueDic[item[0]]
-            result.valueDic[item[0]] = list(scipy.stats.describe(numbers))
+        for key, numbers in groupedPointsWithValue.valueDic.items():
+            result.valueDic[key] = list(scipy.stats.describe(numbers))
         return result
