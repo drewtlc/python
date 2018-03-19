@@ -190,9 +190,9 @@ def main():
     print(groupedData)
     res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
     # Запись в файл с разделителями
-    #CalcResult.write(res)
+    CalcResult.write(res)
     # Вывод диаграмм
-    #CalcResult.diagrams(res, "APResults_diagrams.png")
+    CalcResult.diagrams(res, "APResults_diagrams.png")
     # Вывод ящиков с усами
     CalcResult.boxplots(res, "APResults_boxplots.png")
     return
