@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 # TODO:
-# 4. Построение графиков
 
 from functools import reduce
 import numpy
@@ -13,7 +12,7 @@ class CalcResult:
     percentiles = [25, 50, 75]
     def __init__(self):
         self.kstestM = None
-        self.kstestW = None        
+        self.kstestW = None
         self.shapiroM  = None
         self.shapiroW  = None
         self.normaltestM = None
@@ -131,7 +130,7 @@ class CalcResult:
                 #print(key)
                 file.write(str(key)+";"+calcResult.rowStr()+"\n")
         return
-    def diagrams(calcResults, file):
+    def diagrams(calcResults, file = ""):
         colorM = "blue"
         colorW = "red"
         alpha = 0.5
@@ -159,10 +158,10 @@ class CalcResult:
 # Основная программа (А.П.)
 def main():
     # Читаем из файла
-    allData = ExcelData.readDataFile('Таблица (все данные) v03.xlsx', '', 'Данные', ExcelData.rng(1, 61), ExcelData.rng(1, 24))
+    allData = ExcelData.readDataFile("Таблица (все данные) v03.xlsx", '', "Данные", ExcelData.rng(1, 61), ExcelData.rng(1, 24))
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(2, 61), ExcelData.rng(5, 24), {1 : 'Показатель'})
+    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(2, 61), ExcelData.rng(5, 24), {1 : "Показатель"})
     print("Обработано точек данных: "+str(len(dataPoints)))
     # Группируем по атрибутам "Пол", "Тип покрытия"
     groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Тип покрытия"])
