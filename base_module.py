@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 
-# TODO:
-# +1. Вывод списков точек данных в файл с разделителями для отладки
-# 2. Вывод результатов расчета процентилей в файл с разделителями
-# +3. Анализ гипотезы о нормальном законе распределения для списков точек данных
-# 4. Построение графиков
-
 import xlrd
-import numpy
 import functools
 from functools import reduce
+import numpy
 import scipy.stats
 
 class Tools:
@@ -180,42 +174,10 @@ class DataPoint:
         result = list(dataPointDic.values())
         return result
 
-class CustomAttribute:
-    def __init__(self, customAttrName, attrListToProcess, attrValueToSearch):
-        self.customAttrName    = customAttrName
-        self.attrListToProcess = attrListToProcess
-        self.attrValueToSearch = attrValueToSearch
-        self.mapLambda = lambda attr, dp: 1 if (dp.attributes.get(attr,'') == self.attrValueToSearch) else 0
-    def addCustomAttributeOR(self, dataPoints):
-        reduceLambda = lambda val, listVal: min(val + listVal, 1)
-        for dataPoint in dataPoints:
-            dataPoint.attributes[self.customAttrName] = reduce(reduceLambda, map(functools.partial(self.mapLambda, dp=dataPoint), self.attrListToProcess))
-    def addCustomAttributeAND(self, dataPoints):
-        reduceLambda = lambda val, listVal: min(val * listVal, 1)
-        for dataPoint in dataPoints:
-            dataPoint.attributes[self.customAttrName] = reduce(reduceLambda, map(functools.partial(self.mapLambda, dp=dataPoint), self.attrListToProcess))
-
 class GroupedDataPoints:
     def __init__(self):
         self.attrGroup = list()     # [Пол,Возраст]
         self.valueDic  = dict()     # {ж,7}={ТД1,ТД2}, {ж,8}={ТД3,ТД4}
-    #def makeFlat(self, parentAttrGroup = [], parentAttrGroupValues = [], topLevel=True):
-    #    result = GroupedDataPoints()
-    #    #_строки = ''
-    #    parentAttrGroup += self.attrGroup   # [Пол,Возраст]
-    #    # Проверим, последний это уровень группировки или нет
-    #    for item in self.valueDic.items():
-    #        #_списокЗначенийПолейГруппировки = _ключЗначение[0]                
-    #        attrGroupValues = parentAttrGroupValues.copy()
-    #        attrGroupValues += item[0]              # {ж,6}
-    #        dic = item[1]                           # {[РекГр1],{[Циклич]={ТД1,ТД2}}}
-    #        if type(dic) is GroupedDataPoints:
-    #            result = dic.makeFlat(parentAttrGroup, attrGroupValues, False)
-    #        else:
-    #            result.valueDic[tuple(attrGroupValues)] = dic
-    #    if (topLevel == True):
-    #        result.attrGroup = parentAttrGroup
-    #    return result
     def __str__(self):
         keys = list(self.valueDic.keys());
         keys.sort()
@@ -302,175 +264,3 @@ class GroupedPoints:
             numbers = groupedPointsWithValue.valueDic[item[0]]
             result.valueDic[item[0]] = list(scipy.stats.describe(numbers))
         return result
-
-# Основная программа
-def main():
-    # Читаем из файла
-    allData = ExcelData.readDataFile('ОБЩИЙ ИТОГ 2016-17_01.12_v8.xlsx', 'Коды', 'Рез-ты 16-17', ExcelData.rng(1, 2244), ExcelData.rng(1, 117))
-    print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
-    # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(5, 2244), ExcelData.rng(45, 115), {1 : 'Тип исследования', 2 : 'Группа показателей', 3 : 'Возрасты теста', 4 : 'Показатель'})
-    print("Обработано точек данных: "+str(len(dataPoints)))
-    # Циклические
-    attr1 = CustomAttribute("Рек Циклические", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Циклические")
-    attr1.addCustomAttributeOR(dataPoints);
-    # Командные игровые
-    attr2 = CustomAttribute("Рек Командные игровые", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Командные игровые")
-    attr2.addCustomAttributeOR(dataPoints);
-    # Игровые
-    attr3 = CustomAttribute("Рек Игровые", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Игровые")
-    attr3.addCustomAttributeOR(dataPoints);
-    # Группируем по атрибутам "Пол", "Возраст (год)", "Показатель"
-    #groupedDataAll = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "Рек Циклические"])
-    groupedDataAll = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "Показатель"])
-    groupedDataGr1 = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "Показатель", "Рек гр 1"])
-    #print(groupedDataAll)
-    #print(groupedDataGr1)
-    percentiles = [10, 25, 50, 75, 90]
-    percDataAll = GroupedPoints.percentiles(groupedDataAll, percentiles)
-    percDataGr1 = GroupedPoints.percentiles(groupedDataGr1, percentiles)
-    print(percDataAll)
-    print(percDataGr1)
-    return
-
-class CalcResult:
-    percentiles = [25, 50, 75]
-    def __init__(self):
-        self.kstestM = None
-        self.kstestW = None        
-        self.shapiroM  = None
-        self.shapiroW  = None
-        self.normaltestM = None
-        self.normaltestW = None
-        self.describeM = None
-        self.describeW = None
-        self.percentilesM = None
-        self.percentilesW = None
-        self.ttest = None
-        self.mannwhitneyu = None
-        self.diagramM = None
-        self.diagramW = None
-    def __str__(self):
-        result = ""
-        result += "kstestM      = "+str(self.kstestM)+"\n"
-        result += "kstestW      = "+str(self.kstestW)+"\n"
-        result += "shapiroM     = "+str(self.shapiroM)+"\n"
-        result += "shapiroW     = "+str(self.shapiroW)+"\n"
-        result += "normaltestM  = "+str(self.normaltestM)+"\n"
-        result += "normaltestW  = "+str(self.normaltestW)+"\n"
-        result += "describeM    = "+str(self.describeM)+"\n"
-        result += "describeW    = "+str(self.describeW)+"\n"
-        result += "percentilesM = "+str(self.percentilesM)+"\n"
-        result += "percentilesW = "+str(self.percentilesW)+"\n"
-        result += "ttest        = "+str(self.ttest)+"\n"
-        result += "mannwhitneyu = "+str(self.mannwhitneyu)
-        return result
-    def rowStr(self):
-        result = list()
-        level= 0.05
-        value = list(self.kstestM).pop()
-        result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.kstestW).pop()
-        result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.shapiroM).pop()
-        result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.shapiroW).pop()
-        result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.normaltestM).pop()
-        result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.normaltestW).pop()
-        result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.ttest).pop()
-        result += [Tools.string(value)] + ["Сред.один." if value>level else "Сред.отлич."]
-        value = list(self.describeM).pop(2)
-        result += [Tools.string(value)]
-        value = list(self.describeW).pop(2)
-        result += [Tools.string(value)]
-        value = list(self.mannwhitneyu).pop() * 2
-        result += [value] + ["Сред.один." if value>level else "Сред.отлич."]
-        result += Tools.string(list(self.percentilesM))
-        result += Tools.string(list(self.percentilesW))
-        
-        for i in range(len(self.diagramM.cumcount)):
-            result += [Tools.string(self.diagramM.lowerlimit + i * self.diagramM.binsize)]
-        for i in range(len(self.diagramM.cumcount)):
-            result += [Tools.string(self.diagramM.cumcount[i] if i==0 else self.diagramM.cumcount[i]-self.diagramM.cumcount[i-1])]
-        for i in range(len(self.diagramW.cumcount)):
-            result += [Tools.string(self.diagramW.lowerlimit + i * self.diagramW.binsize)]
-        for i in range(len(self.diagramW.cumcount)):
-            result += [Tools.string(self.diagramW.cumcount[i] if i==0 else self.diagramW.cumcount[i]-self.diagramW.cumcount[i-1])]
-        
-        return reduce(lambda s,i: str(s)+";"+str(i), result)
-    def captionsStr():
-        result = list()
-        result += ["K-S test value (M)", "K-S test (M)", "K-S test value (W)", "K-S test (W)"]
-        result += ["Shapiro test value (M)", "Shapiro test (M)", "Shapiro test value (W)", "Shapiro test (W)"]
-        result += ["Normal test value (M)", "Normal test (M)", "Normal test value (W)", "Normal test (W)"]
-        result += ["Сравнение средних value T-test", "Сравнение средних T-test", "Mean value (M)", "Mean value (W)"]
-        result += ["Сравнение средних value MU", "Сравнение средних MU"]+Tools.string(CalcResult.percentiles)+Tools.string(CalcResult.percentiles)
-        return reduce(lambda s,i: str(s)+";"+str(i), result)        
-    def calc(groupedDataPoints, keySecondPartM, keySecondPartW):
-        result = dict()
-        groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
-        keyFirstParts = list(set(reduce(lambda l1,l2: l1+[l2], list(map(lambda key: list(key)[0], groupedPointsWithValue.valueDic.keys())), list())))
-        keyFirstParts.sort()
-        for keyFirstPart in keyFirstParts:
-            keyM = [keyFirstPart] + keySecondPartM
-            keyW = [keyFirstPart] + keySecondPartW
-            numbersM = groupedPointsWithValue.valueDic[tuple(keyM)]
-            numbersW = groupedPointsWithValue.valueDic[tuple(keyW)]
-            tests = CalcResult()
-            tests.kstestM = scipy.stats.kstest(numbersM, "norm")
-            tests.kstestW = scipy.stats.kstest(numbersW, "norm")
-            tests.shapiroM = scipy.stats.shapiro(numbersM)
-            tests.shapiroW = scipy.stats.shapiro(numbersW)
-            tests.normaltestM = scipy.stats.normaltest(numbersM)
-            tests.normaltestW = scipy.stats.normaltest(numbersW)
-            tests.describeM = scipy.stats.describe(numbersM)
-            tests.describeW = scipy.stats.describe(numbersW)
-            tests.percentilesM = numpy.percentile(numpy.array(numbersM), CalcResult.percentiles)
-            tests.percentilesW = numpy.percentile(numpy.array(numbersW), CalcResult.percentiles)
-            tests.ttest = scipy.stats.ttest_ind(numbersM, numbersW)
-            tests.mannwhitneyu = scipy.stats.mannwhitneyu(numbersM, numbersW)
-            tests.diagramM = scipy.stats.cumfreq(numbersM)
-            tests.diagramW = scipy.stats.cumfreq(numbersW)
-            #print(tests.diagramM)
-            #print(keyFirstPart)
-            #print(tests)
-            #print(tests.rowStr())
-            #print(keyFirstPart)
-            result[keyFirstPart] = tests
-        return result
-    def write(calcResults, file = "APResults.csv"):
-        keys = list(calcResults.keys())
-        keys.sort()
-        with open(file, "w") as file:
-            file.write("Показатель"+";"+CalcResult.captionsStr()+"\n")
-            for key in keys:
-                calcResult = calcResults[key]
-                #print(key)
-                file.write(str(key)+";"+calcResult.rowStr()+"\n")
-        return
-
-# Основная программа (А.П.)
-def main2():
-    # Читаем из файла
-    allData = ExcelData.readDataFile('Таблица (все данные) v03.xlsx', '', 'Данные', ExcelData.rng(1, 61), ExcelData.rng(1, 24))
-    print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
-    # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(2, 61), ExcelData.rng(5, 24), {1 : 'Показатель'})
-    print("Обработано точек данных: "+str(len(dataPoints)))
-    # Группируем по атрибутам "Пол", "Тип покрытия"
-    groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Тип покрытия"])
-    #groupedData = GroupedDataPoints.groupByList(dataPoints, ["Тип покрытия", "Показатель"])
-    #groupedData.debug()
-    #print(groupedData)
-    #normTestResult = GroupedPoints.shapiro(groupedData)
-    #groupedValues = GroupedPoints.dataPointsWithValue(groupedData)
-    print(groupedData)
-    res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
-    CalcResult.write(res)
-    return
-
-main2()
-
