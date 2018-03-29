@@ -21,15 +21,68 @@ class CustomAttribute:
         reduceLambda = lambda val, listVal: min(val + listVal, 1)
         for dataPoint in dataPoints:
             dataPoint.attributes[self.customAttrName] = reduce(reduceLambda, map(functools.partial(self.mapLambda, dp=dataPoint), self.attrListToProcess))
+        return
     def addCustomAttributeAND(self, dataPoints):
         reduceLambda = lambda val, listVal: min(val * listVal, 1)
         for dataPoint in dataPoints:
             dataPoint.attributes[self.customAttrName] = reduce(reduceLambda, map(functools.partial(self.mapLambda, dp=dataPoint), self.attrListToProcess))
+        return
     def addCustomAttribute(self, dataPoints):
         for dataPoint in dataPoints:
             dataPoint.attributes[self.customAttrName] = self.calcLambda(dataPoint)
+        return
+    def splitInGroups(self, dataPoints):
+        attrNames = ["Группа видов спорта 1", "Группа видов спорта 2", "Группа видов спорта 3", "Группа видов спорта 4"]
+        attrDict = {"Группа видов спорта 1": ["Рекомендванный вид спорта 1", "Рекомендванный вид спорта 11", "Рекомендванный вид спорта 111"], "Группа видов спорта 2": ["Рекомендванный вид спорта 2", "Рекомендванный вид спорта 22", "Рекомендванный вид спорта 222"], "Группа видов спорта 3": ["Рекомендванный вид спорта 3", "Рекомендванный вид спорта 33", "Рекомендванный вид спорта 333"], "Группа видов спорта 4": ["Рекомендванный вид спорта 4", "Рекомендванный вид спорта 44", "Рекомендванный вид спорта 444"]}
+        groupName = "циклические"
+        sportName = "Плавание"
+        valueAndCount = dict()
+        rowAndValue = dict()
+        for dataPoint in dataPoints:
+            curValue = rowAndValue.get(dataPoint.row,"")
+            additionalCurValue = ""
+            if curValue != "":
+                dataPoint.attributes[self.customAttrName] = curValue
+            else:
+                values = list()
+                additionalValues = list()
+                for attrName in attrNames:
+                    value = dataPoint.attributes.get(attrName, '')
+                    if value != "":
+                        parts = list(value.split(" - "))
+                        if len(parts) == 2:
+                            value = parts[1]
+                        else:
+                            value = parts[0]
+                        values += [value]
+                        additionalValue = ""
+                        if value == groupName:
+                            for additionalAttrName in attrDict.get(attrName, []):
+                                if dataPoint.attributes.get(attrName, '') == sportName:
+                                    additionalValue = sportName
+                        additionalValues += [additionalValue]
+                for i in range(len(values)):
+                    value = values[i]
+                    additionalValue = additionalValues[i]
+                    if curValue == "" or (curValue == groupName and additionalCurValue == sportName):
+                        curValue = value
+                        additionalCurValue = additionalValue
+                    else:
+                        count = valueAndCount.get(value, 0)
+                        curCount = valueAndCount.get(curValue, 0)
+                        if count < curCount:
+                            curCount = count
+                if curValue == groupName and additionalCurValue == sportName:
+                    curValue = ""
+                dataPoint.attributes[self.customAttrName] = curValue
+                rowAndValue[dataPoint.row] = curValue
+                if curValue != "":
+                    curCount = valueAndCount.get(curValue, 0)
+                    valueAndCount[curValue] = (curCount + 1)
+        #print(valueAndCount)
+        return
 
-# Основная программа
+    # Основная программа
 def main1():
     # Читаем из файла
     allData = ExcelData.readDataFile('ОБЩИЙ ИТОГ 2016-17_01.12_v8.xlsx', 'Коды', 'Рез-ты 16-17', ExcelData.rng(1, 2244), ExcelData.rng(1, 117))
@@ -70,18 +123,20 @@ def main():
     #attrAge.addCustomAttribute(dataPoints);
     attrVid = CustomAttribute("Группа видов спорта 1 (периф. зрение)", [], "", lambda dp: "" if dp.attributes.get("Группа видов спорта 1",'')=="10 - циклические" and (dp.attributes.get("Рекомендванный вид спорта 1",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 11",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 111",'')=="Плавание" ) else dp.attributes.get("Группа видов спорта 1",''))
     attrVid.addCustomAttribute(dataPoints);
+    attrGroup = CustomAttribute("Группа видов спорта")
+    attrGroup.splitInGroups(dataPoints);
 
     percentiles = [5, 25, 50, 75, 95]
 
     # Адаптационный потенциал
-    groupedData_ПолВозрастПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст", "Показатель"])
+    groupedData_ПолВозрастПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастПоказатель)
     perc_ПолВозрастПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастПоказатель, percentiles)
     #print(perc_ПолВозрастПоказатель)
     perc_ПолВозрастПоказатель.saveToFile("perc_ПолВозрастПоказатель.csv", perc_ПолВозрастПоказатель.attrGroup)
 
     # Группируем по атрибутам "Пол", "Возраст (год)", "Группа видов спорта 1 (периф. зрение)"
-    groupedData_ПолВозрастВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст", "Группа видов спорта 1 (периф. зрение)", "Показатель"])
+    groupedData_ПолВозрастВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастВидПоказатель)
     perc_ПолВозрастВидПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастВидПоказатель, percentiles)
     #print(perc_ПолВозрастВидПоказатель)
