@@ -254,6 +254,17 @@ class GroupedPoints:
         reduceLambda = lambda s, nextS: s + ";\n" + nextS
         return "{" + str(self.attrGroup) + "\n" + reduce(reduceLambda, map(mapLambda, range(len(keys)))) + "}"
 
+    def saveToFile(self, fileName, captions=[], delim=";"):
+        keys = list(self.valueDic.keys())
+        keys.sort()
+        reduceLambda = lambda s, nextS: Tools.string(s) + delim + Tools.string(nextS)
+        mapLambda = lambda i: Tools.string(reduce(reduceLambda, list(keys[i]))) + delim + Tools.string(reduce(reduceLambda, list(self.valueDic[keys[i]])))
+        reduceStrLambda = lambda s, nextS: s + "\n" + nextS
+        result = ("" if len(captions)==0 else reduce(reduceLambda, captions)) + "\n" + reduce(reduceStrLambda, map(mapLambda, range(len(keys))))
+        with open(fileName, "w") as file:
+            file.write(result)
+        return
+
     def dataPointsWithValue(groupedDataPoints):  # Из списка точек данных строим список числовых значений
         result = GroupedPoints()
         result.attrGroup = groupedDataPoints.attrGroup.copy()

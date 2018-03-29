@@ -61,51 +61,32 @@ def main1():
 
 def main():
     # Читаем из файла
-    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v04.xlsx', '', 'База 20.03.18', ExcelData.rng(1, 2808), ExcelData.rng(1, 138))
+    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.1_v05.xlsx', '', 'База 20.03.18', ExcelData.rng(1, 2808), ExcelData.rng(1, 138))
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(2, 2808), ExcelData.rng(57, 138), {})
+    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(2, 2808), ExcelData.rng(57, 138), {1 : 'Показатель'})
     print("Обработано точек данных: "+str(len(dataPoints)))
-    # # Циклические
-    # attr1 = CustomAttribute("Рек Циклические", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Циклические")
-    # attr1.addCustomAttributeOR(dataPoints);
-    # # Командные игровые
-    # attr2 = CustomAttribute("Рек Командные игровые", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Командные игровые")
-    # attr2.addCustomAttributeOR(dataPoints);
-    # # Игровые
-    # attr3 = CustomAttribute("Рек Игровые", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Игровые")
-    # attr3.addCustomAttributeOR(dataPoints);
-    attrAge = CustomAttribute("Возраст (год)", [], "", lambda dp: round(dp.attributes.get("Возраст",'')) if dp.isFloat else 0)
-    attrAge.addCustomAttribute(dataPoints);
+    #attrAge = CustomAttribute("Возраст (год)", [], "", lambda dp: round(dp.attributes.get("Возраст",'')) if dp.isFloat else 0)
+    #attrAge.addCustomAttribute(dataPoints);
     attrVid = CustomAttribute("Группа видов спорта 1 (периф. зрение)", [], "", lambda dp: "" if dp.attributes.get("Группа видов спорта 1",'')=="10 - циклические" and (dp.attributes.get("Рекомендванный вид спорта 1",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 11",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 111",'')=="Плавание" ) else dp.attributes.get("Группа видов спорта 1",''))
     attrVid.addCustomAttribute(dataPoints);
 
     percentiles = [5, 25, 50, 75, 95]
-    # Адаптационный потенциал
-    groupedData_ПолВозрастЧСС = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "ЧСС в покое"])
-    groupedData_ПолВозрастСАД = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "систолическое давление"])
-    groupedData_ПолВозрастДАД = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "диастолическое давление"])
-    groupedData_ПолВозрастАП  = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "Адаптационный потенциал"])
-    print(groupedData_ПолВозрастЧСС)
-    print(groupedData_ПолВозрастСАД)
-    print(groupedData_ПолВозрастДАД)
-    print(groupedData_ПолВозрастАП)
-    perc_ПолВозрастЧСС = GroupedPoints.percentiles(groupedData_ПолВозрастЧСС, percentiles)
-    perc_ПолВозрастСАД = GroupedPoints.percentiles(groupedData_ПолВозрастСАД, percentiles)
-    perc_ПолВозрастДАД = GroupedPoints.percentiles(groupedData_ПолВозрастДАД, percentiles)
-    perc_ПолВозрастАП = GroupedPoints.percentiles(groupedData_ПолВозрастАП, percentiles)
-    print(perc_ПолВозрастЧСС)
-    print(perc_ПолВозрастСАД)
-    print(perc_ПолВозрастДАД)
-    print(perc_ПолВозрастАП)
 
-    # # Группируем по атрибутам "Пол", "Возраст (год)", "Группа видов спорта 1 (периф. зрение)"
-    # groupedDataPolVozrastVid = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "Группа видов спорта 1 (периф. зрение)", "Показатель"])
-    # print(groupedDataPolVozrastVid)
-    # percDataPolVozrast = GroupedPoints.percentiles(groupedDataPolVozrast, percentiles)
-    # percDataDataPolVozrastVid = GroupedPoints.percentiles(groupedDataPolVozrastVid, percentiles)
-    # print(percDataPolVozrast)
-    # print(percDataDataPolVozrastVid)
+    # Адаптационный потенциал
+    groupedData_ПолВозрастПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст", "Показатель"])
+    #print(groupedData_ПолВозрастПоказатель)
+    perc_ПолВозрастПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастПоказатель, percentiles)
+    #print(perc_ПолВозрастПоказатель)
+    perc_ПолВозрастПоказатель.saveToFile("perc_ПолВозрастПоказатель.csv", perc_ПолВозрастПоказатель.attrGroup)
+
+    # Группируем по атрибутам "Пол", "Возраст (год)", "Группа видов спорта 1 (периф. зрение)"
+    groupedData_ПолВозрастВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст", "Группа видов спорта 1 (периф. зрение)", "Показатель"])
+    #print(groupedData_ПолВозрастВидПоказатель)
+    perc_ПолВозрастВидПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастВидПоказатель, percentiles)
+    #print(perc_ПолВозрастВидПоказатель)
+    perc_ПолВозрастВидПоказатель.saveToFile("perc_ПолВозрастВидПоказатель.csv",perc_ПолВозрастВидПоказатель.attrGroup)
+
     return
 
 main()
