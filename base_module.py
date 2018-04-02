@@ -14,6 +14,17 @@ class Tools:
         else:
             return str(val).replace(".", ",")
 
+class RowsColsSettings:
+    def __init__(self, строкаНачало, строкаКонец, столбецНачало, столбецКонец, строкаДанныхНачало =- 1, строкаДанныхКонец =- 1, столбецДанныхНачало =- 1, столбецДанныхКонец =- 1):
+        self.rowFrom = строкаНачало
+        self.rowTo = строкаКонец + 1    # +1 для правильного расчета правой границы через функцию range
+        self.colFrom = столбецНачало
+        self.colTo = столбецКонец + 1   # +1 для правильного расчета правой границы через функцию range
+        self.rowDataFrom = строкаДанныхНачало if строкаДанныхНачало != -1 and строкаДанныхНачало != None else self.rowFrom
+        self.rowDataTo = строкаДанныхКонец if строкаДанныхКонец != -1 and строкаДанныхКонец != None else self.rowTo
+        self.colDataFrom = столбецДанныхНачало if столбецДанныхНачало != -1 and столбецДанныхНачало != None else self.colFrom
+        self.colDataTo = столбецДанныхКонец if столбецДанныхКонец != -1 and столбецДанныхКонец != None else self.colTo
+
 
 class Dictionary:
     def __init__(self):
@@ -52,8 +63,9 @@ class ExcelData:
         tablePointsStr = reduce((lambda s, tableStr: s + "," + tableStr), map(str, self.tablePoints))
         return "{словари=" + str(dictionariesStr) + ";\nячейки=" + str(tablePointsStr) + "}"
 
-    def readDataFile(fileName, dicSheetName="Коды", dataSheetName="Рез-ты 16-17", rowRange=range(1, 2244),
-                     colRange=range(1, 117)):  # 116 - Столбец DL
+    def readDataFile(fileName, dicSheetName, dataSheetName, rowsColsSettings):  # 116 - Столбец DL
+        rowRange = range(rowsColsSettings.rowFrom, rowsColsSettings.rowTo)
+        colRange = range(rowsColsSettings.colFrom, rowsColsSettings.colTo)
         result = ExcelData()
         book = xlrd.open_workbook(fileName, formatting_info=False)
         # Читаем справочники
@@ -86,8 +98,7 @@ class ExcelData:
                 tablePoint = TablePoint()
                 tablePoint.row = rowNum
                 tablePoint.col = colNum
-                tablePoint.value = '' if len(row) < colNum else row[
-                    colNum - 1]  # -1 чтобы перевести индексы excel в индексы python
+                tablePoint.value = '' if len(row) < colNum else row[colNum - 1]  # -1 чтобы перевести индексы excel в индексы python
                 result.tablePoints.append(tablePoint)
         return result
 
@@ -120,10 +131,12 @@ class DataPoint:
     def toStrWithAttr(point):
         return "{" + point.toStr() + ";" + str(point.attributes) + "}"
 
-    def makeDataPoints(excelData, dataRows=[], dataCols=[],
+    def makeDataPoints(excelData, rowsColsSettings,
                        colAttrNames={1: 'Тип исследования', 2: 'Группа показателей', 3: 'Возрасты теста',
                                      4: 'Показатель'}):
         result = []
+        dataRows = range(rowsColsSettings.rowDataFrom, rowsColsSettings.rowDataTo)
+        dataCols = range(rowsColsSettings.colDataFrom, rowsColsSettings.colDataTo)
         dataPointDic = {}  # Словарь для точек данных
         excelDataMatrix = {}  # Словарь для данных Excel
         allRowsSet = set()  # Множество всех строк в excelData
@@ -240,6 +253,14 @@ class GroupedDataPoints:
         if fileName == "":
             print(result)
         return
+
+    def buildColDict(self, attrName):
+        result = dict()
+        for dataPoints in self.valueDic.values():
+            for dataPoint in dataPoints:
+                if attrName in dataPoint.attributes:
+                    result[dataPoint.attributes.get(attrName)] = dataPoint.col
+        return result
 
 
 class GroupedPoints:

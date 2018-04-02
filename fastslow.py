@@ -2,10 +2,11 @@
 
 # TODO:
 
+import functools
 from functools import reduce
 import numpy
 import scipy.stats
-from base_module import Tools, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
+from base_module import Tools, RowsColsSettings, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
 import matplotlib.pyplot
 
 class CalcResult:
@@ -27,6 +28,7 @@ class CalcResult:
         self.diagramW = None
         self.numbersM = None
         self.numbersW = None
+
     def __str__(self):
         result = ""
         result += "kstestM      = "+str(self.kstestM)+"\n"
@@ -42,6 +44,7 @@ class CalcResult:
         result += "ttest        = "+str(self.ttest)+"\n"
         result += "mannwhitneyu = "+str(self.mannwhitneyu)
         return result
+
     def rowStr(self):
         result = list()
         level= 0.05
@@ -78,6 +81,7 @@ class CalcResult:
             result += [Tools.string(self.diagramW.cumcount[i] if i==0 else self.diagramW.cumcount[i]-self.diagramW.cumcount[i-1])]
         
         return reduce(lambda s,i: str(s)+";"+str(i), result)
+
     def captionsStr():
         result = list()
         result += ["K-S test value (M)", "K-S test (M)", "K-S test value (W)", "K-S test (W)"]
@@ -86,6 +90,7 @@ class CalcResult:
         result += ["Сравнение средних value T-test", "Сравнение средних T-test", "Mean value (M)", "Mean value (W)"]
         result += ["Сравнение средних value MU", "Сравнение средних MU"]+Tools.string(CalcResult.percentiles)+Tools.string(CalcResult.percentiles)
         return reduce(lambda s,i: str(s)+";"+str(i), result)        
+
     def calc(groupedDataPoints, keySecondPartM, keySecondPartW):
         result = dict()
         groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
@@ -120,9 +125,20 @@ class CalcResult:
             #print(keyFirstPart)
             result[keyFirstPart] = tests
         return result
-    def write(calcResults, file = "APResults.csv"):
-        keys = list(calcResults.keys())
-        keys.sort()
+
+    def keysInOrder(keys, sortDict):
+        sortLambda = lambda obj, dic : dic.get(obj) if obj in dic else obj
+        orderedKeys = sorted(keys, key = functools.partial(sortLambda, dic=sortDict))
+        return orderedKeys
+
+    def write(calcResults, file = "APResults.csv", sortDict = dict()):
+        # keys = list(calcResults.keys())
+        # print(keys)
+        # sortLambda = lambda obj, dic : obj if dic.get(obj,"")=="" else dic.get(obj)
+        # orderedKeys = sorted(keys, key = functools.partial(sortLambda, dic=sortDict))
+        # print(orderedKeys)
+        # keys.sort()
+        keys = CalcResult.keysInOrder(calcResults.keys(), sortDict)
         with open(file, "w") as file:
             file.write("Показатель"+";"+CalcResult.captionsStr()+"\n")
             for key in keys:
@@ -130,14 +146,15 @@ class CalcResult:
                 #print(key)
                 file.write(str(key)+";"+calcResult.rowStr()+"\n")
         return
-    def diagrams(calcResults, file = ""):
+    def diagrams(calcResults, file = "", sortDict = dict()):
         colorM = "blue"
         colorW = "red"
         alpha = 0.5
         figWidth = 10
         figHeight = 8
-        keys = list(calcResults.keys())
-        keys.sort()
+        # keys = list(calcResults.keys())
+        # keys.sort()
+        keys = CalcResult.keysInOrder(calcResults.keys(), sortDict)
         fig = matplotlib.pyplot.figure(figsize=(figWidth, figHeight*len(keys)))
         for index in range(len(keys)):
             key = keys[index]
@@ -154,11 +171,12 @@ class CalcResult:
             ax.set_title(key)
         matplotlib.pyplot.show() if (file=="") else matplotlib.pyplot.savefig(file)
         return
-    def boxplots(calcResults, file = ""):
+    def boxplots(calcResults, file = "", sortDict = dict()):
         figWidth = 8
         figHeight = 8
-        keys = list(calcResults.keys())
-        keys.sort()
+        # keys = list(calcResults.keys())
+        # keys.sort()
+        keys = CalcResult.keysInOrder(calcResults.keys(), sortDict)
         fig = matplotlib.pyplot.figure(figsize=(figWidth, figHeight*len(keys)))
         for index in range(len(keys)):
             key = keys[index]
@@ -175,13 +193,15 @@ class CalcResult:
 # Основная программа (А.П.)
 def main():
     # Читаем из файла
-    allData = ExcelData.readDataFile("Таблица (все данные) v03.xlsx", '', "Данные", ExcelData.rng(1, 61), ExcelData.rng(1, 24))
+    rowsColsSettings = RowsColsSettings(1, 61, 1, 30, 2, None, 7, None)
+    allData = ExcelData.readDataFile("Таблица (все данные) v05.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(2, 61), ExcelData.rng(5, 24), {1 : "Показатель"})
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : "Показатель"})
     print("Обработано точек данных: "+str(len(dataPoints)))
     # Группируем по атрибутам "Пол", "Тип покрытия"
     groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Тип покрытия"])
+    orderDict = groupedData.buildColDict("Показатель")
     #groupedData = GroupedDataPoints.groupByList(dataPoints, ["Тип покрытия", "Показатель"])
     #groupedData.debug()
     #print(groupedData)
@@ -190,11 +210,11 @@ def main():
     print(groupedData)
     res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
     # Запись в файл с разделителями
-    CalcResult.write(res)
+    CalcResult.write(res,"APResults.csv", orderDict)
     # Вывод диаграмм
-    CalcResult.diagrams(res, "APResults_diagrams.png")
+    CalcResult.diagrams(res, "APResults_diagrams.png", orderDict)
     # Вывод ящиков с усами
-    CalcResult.boxplots(res, "APResults_boxplots.png")
+    CalcResult.boxplots(res, "APResults_boxplots.png", orderDict)
     return
 
 main()
