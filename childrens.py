@@ -8,7 +8,7 @@
 
 import functools
 from functools import reduce
-from base_module import DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
+from base_module import RowsColsSettings, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
 
 class CustomAttribute:
     def __init__(self, customAttrName, attrListToProcess = [], attrValueToSearch = "", calcLambda = lambda dp: None):
@@ -114,10 +114,11 @@ def main1():
 
 def main():
     # Читаем из файла
-    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.1_v05.xlsx', '', 'База 20.03.18', ExcelData.rng(1, 2808), ExcelData.rng(1, 138))
+    rowsColsSettings = RowsColsSettings(1, 2808, 1, 138, 2, None, 57, None)
+    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.1_v05.xlsx', '', 'База 20.03.18', rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, ExcelData.rng(2, 2808), ExcelData.rng(57, 138), {1 : 'Показатель'})
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : 'Показатель'})
     print("Обработано точек данных: "+str(len(dataPoints)))
     #attrAge = CustomAttribute("Возраст (год)", [], "", lambda dp: round(dp.attributes.get("Возраст",'')) if dp.isFloat else 0)
     #attrAge.addCustomAttribute(dataPoints);

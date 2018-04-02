@@ -5,7 +5,7 @@ import functools
 from functools import reduce
 import numpy
 import scipy.stats
-
+from itertools import repeat
 
 class Tools:
     def string(val):
@@ -297,10 +297,13 @@ class GroupedPoints:
         # Из сгруппированных точек строим сгруппированные списки числовых значений
         groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
         result = GroupedPoints()
-        result.attrGroup = groupedPointsWithValue.attrGroup.copy() + percentiles.copy() + ["count"]
+        result.attrGroup = groupedPointsWithValue.attrGroup.copy() + percentiles.copy() + ["count", "mean", "std", "data"]
         for key, numbers in groupedPointsWithValue.valueDic.items():
-            result.valueDic[key] = (list() if len(numbers) == 0 else list(
-                numpy.percentile(numpy.array(numbers), percentiles))) + [len(numbers)]
+            value = list(repeat("", len(percentiles))) + [0, "", ""]
+            if len(numbers) != 0:
+                nparr = numpy.array(numbers)
+                value = list(numpy.percentile(nparr, percentiles)) + [len(numbers)] + [numpy.mean(nparr)] + [numpy.std(nparr)] + [str(numbers)]
+            result.valueDic[key] = value
         return result
 
     def kstest(groupedDataPoints):
