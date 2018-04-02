@@ -92,13 +92,13 @@ def main1():
     print("Обработано точек данных: "+str(len(dataPoints)))
     # Циклические
     attr1 = CustomAttribute("Рек Циклические", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Циклические")
-    attr1.addCustomAttributeOR(dataPoints);
+    attr1.addCustomAttributeOR(dataPoints)
     # Командные игровые
     attr2 = CustomAttribute("Рек Командные игровые", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Командные игровые")
-    attr2.addCustomAttributeOR(dataPoints);
+    attr2.addCustomAttributeOR(dataPoints)
     # Игровые
     attr3 = CustomAttribute("Рек Игровые", ["Рек гр 1", "Рек гр 2", "Рек гр 3", "Рек гр 4"], "Игровые")
-    attr3.addCustomAttributeOR(dataPoints);
+    attr3.addCustomAttributeOR(dataPoints)
     # Группируем по атрибутам "Пол", "Возраст (год)", "Показатель"
     #groupedDataAll = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "Рек Циклические"])
     groupedDataAll = GroupedDataPoints.groupByList(dataPoints, ["Пол", "Возраст (год)", "Показатель"])
@@ -114,32 +114,34 @@ def main1():
 
 def main():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(1, 2808, 1, 138, 2, None, 57, None)
-    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.1_v05.xlsx', '', 'База 20.03.18', rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(1, 2810, 1, 138, 4, None, 57, None)
+    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.2.xlsx', '', 'База 20.03.18', rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : 'Показатель'})
+    upDown = lambda value: -1 if value=="↓" else 1
+    roundCount = lambda value: 2 if value == "0,11" or value == 0.11 else (1 if value == "0,1" or value == 0.1 else (0 if value == "целое" else -1))
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : 'ВозрУбыв', 2 : 'Округл', 3 : 'Показатель'}, {1 : upDown, 2 : roundCount}, False)
     print("Обработано точек данных: "+str(len(dataPoints)))
     #attrAge = CustomAttribute("Возраст (год)", [], "", lambda dp: round(dp.attributes.get("Возраст",'')) if dp.isFloat else 0)
-    #attrAge.addCustomAttribute(dataPoints);
+    #attrAge.addCustomAttribute(dataPoints)
     attrVid = CustomAttribute("Группа видов спорта 1 (периф. зрение)", [], "", lambda dp: "" if dp.attributes.get("Группа видов спорта 1",'')=="10 - циклические" and (dp.attributes.get("Рекомендванный вид спорта 1",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 11",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 111",'')=="Плавание" ) else dp.attributes.get("Группа видов спорта 1",''))
-    attrVid.addCustomAttribute(dataPoints);
+    attrVid.addCustomAttribute(dataPoints)
     attrGroup = CustomAttribute("Группа видов спорта")
-    attrGroup.splitInGroups(dataPoints);
+    attrGroup.splitInGroups(dataPoints)
 
     percentiles = [5, 25, 50, 75, 95]
 
     # Адаптационный потенциал
     groupedData_ПолВозрастПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастПоказатель)
-    perc_ПолВозрастПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастПоказатель, percentiles)
+    perc_ПолВозрастПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастПоказатель, percentiles, "ВозрУбыв", "Округл")
     #print(perc_ПолВозрастПоказатель)
     perc_ПолВозрастПоказатель.saveToFile("perc_ПолВозрастПоказатель.csv", perc_ПолВозрастПоказатель.attrGroup)
 
     # Группируем по атрибутам "Пол", "Возраст (год)", "Группа видов спорта 1 (периф. зрение)"
     groupedData_ПолВозрастВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастВидПоказатель)
-    perc_ПолВозрастВидПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастВидПоказатель, percentiles)
+    perc_ПолВозрастВидПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастВидПоказатель, percentiles, "ВозрУбыв", "Округл")
     #print(perc_ПолВозрастВидПоказатель)
     perc_ПолВозрастВидПоказатель.saveToFile("perc_ПолВозрастВидПоказатель.csv",perc_ПолВозрастВидПоказатель.attrGroup)
 

@@ -133,7 +133,7 @@ class DataPoint:
 
     def makeDataPoints(excelData, rowsColsSettings,
                        colAttrNames={1: 'Тип исследования', 2: 'Группа показателей', 3: 'Возрасты теста',
-                                     4: 'Показатель'}):
+                                     4: 'Показатель'}, colAttrLambdas={}, fillAttrBlanks = True):
         result = []
         dataRows = range(rowsColsSettings.rowDataFrom, rowsColsSettings.rowDataTo)
         dataCols = range(rowsColsSettings.colDataFrom, rowsColsSettings.colDataTo)
@@ -181,19 +181,22 @@ class DataPoint:
             colDic = colAttrDic.get(rowCol[1], dict())
             caption = colAttrNames.get(rowCol[0], "")
             value = excelDataMatrix[rowCol]
+            if rowCol[0] in colAttrLambdas:
+                value = colAttrLambdas.get(rowCol[0])(value)
             colDic[caption if caption != "" else "[row" + str(rowCol[0]) + "]"] = value
             colAttrDic[rowCol[1]] = colDic
         # Для объединенных ячеек Excel сохраяет только первое значение. Пропуски надо дополнить
-        for attrName in colAttrNames.values():
-            colNumbers = list(colAttrDic.keys())
-            colNumbers.sort()
-            for i in range(len(colNumbers)):
-                col = colNumbers[i]
-                colAttrValue = colAttrDic[col][attrName]
-                if colAttrValue == "":
-                    prevCol = colNumbers[i - 1]
-                    colAttrPrevValue = colAttrDic[prevCol][attrName]
-                    colAttrDic[col][attrName] = colAttrPrevValue
+        if fillAttrBlanks == True:
+            for attrName in colAttrNames.values():
+                colNumbers = list(colAttrDic.keys())
+                colNumbers.sort()
+                for i in range(len(colNumbers)):
+                    col = colNumbers[i]
+                    colAttrValue = colAttrDic[col][attrName]
+                    if colAttrValue == "":
+                        prevCol = colNumbers[i - 1]
+                        colAttrPrevValue = colAttrDic[prevCol][attrName]
+                        colAttrDic[col][attrName] = colAttrPrevValue
         # Строим словарь точек данных. Ключ - пара из строки и столбца
         for rowCol in [tuple([row, col]) for row in dataRowsList for col in dataColsList]:
             value = excelDataMatrix[rowCol]
@@ -293,16 +296,56 @@ class GroupedPoints:
             result.valueDic[key] = list(map(lambda dp: dp.value, list(filter(lambda dp: dp.isFloat == True, value))))
         return result
 
-    def percentiles(groupedDataPoints, percentiles):
+    def dataPointsAttrValue(groupedDataPoints, attrName):  # Из списка точек данных строим множество значений атрибута
+        result = GroupedPoints()
+        result.attrGroup = groupedDataPoints.attrGroup.copy()
+        for key, value in groupedDataPoints.valueDic.items():
+            attrValuesSet = set(map(lambda dp: dp.attributes.get(attrName, ""), value))
+            attrValuesSet = attrValuesSet.difference(set(""))
+            result.valueDic[key] = attrValuesSet
+        return result
+
+        # result = set()
+        # for key, value in groupedDataPoints.valueDic.items():
+        #     attrValues = list(map(lambda dp: dp.attributes.get(attrName, ''), value))
+        #     # print(attrValues)
+        #     attrValuesSet = set(attrValues)
+        #     result = result.union(attrValuesSet)
+        # result = result.difference(set(''))
+        # return result
+
+    def percentiles(groupedDataPoints, percentiles, orderAttrName = "", roundCountAttrName = ""):
         # Из сгруппированных точек строим сгруппированные списки числовых значений
         groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
+        groupedPointsOrderAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, orderAttrName)
+        groupedPointsRoundCountAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, roundCountAttrName)
         result = GroupedPoints()
         result.attrGroup = groupedPointsWithValue.attrGroup.copy() + percentiles.copy() + ["count", "mean", "std", "data"]
         for key, numbers in groupedPointsWithValue.valueDic.items():
             value = list(repeat("", len(percentiles))) + [0, "", ""]
+            order = 1
+            if orderAttrName != "":
+                orders = groupedPointsOrderAttrValue.valueDic.get(key)
+                if len(orders) == 1:
+                    order = list(orders)[0]
+            roundCount = -1
+            if roundCountAttrName != "":
+                roundCounts = groupedPointsRoundCountAttrValue.valueDic.get(key)
+                if len(roundCounts) == 1:
+                    roundCount = list(roundCounts)[0]
             if len(numbers) != 0:
                 nparr = numpy.array(numbers)
-                value = list(numpy.percentile(nparr, percentiles)) + [len(numbers)] + [numpy.mean(nparr)] + [numpy.std(nparr)] + [str(numbers)]
+                value = list(numpy.percentile(nparr, percentiles))
+                if roundCount != -1:
+                    value = list(map(lambda v: round(v, roundCount), value))
+                if order == -1:
+                    value.reverse()
+                value += [len(numbers)]
+                mean = numpy.mean(nparr)
+                value += ([mean] if roundCount == -1 else [round(mean, roundCount + 2)])
+                std = numpy.std(nparr)
+                value += ([std] if roundCount == -1 else [round(std, roundCount + 2)])
+                value += [str(numbers)]
             result.valueDic[key] = value
         return result
 
