@@ -320,9 +320,8 @@ class GroupedPoints:
         groupedPointsOrderAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, orderAttrName)
         groupedPointsRoundCountAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, roundCountAttrName)
         result = GroupedPoints()
-        result.attrGroup = groupedPointsWithValue.attrGroup.copy() + percentiles.copy() + ["count", "mean", "std", "data"]
+        result.attrGroup = groupedPointsWithValue.attrGroup.copy() + percentiles.copy() + ["count", "mean", "std", "order", "round", "data"]
         for key, numbers in groupedPointsWithValue.valueDic.items():
-            value = list(repeat("", len(percentiles))) + [0, "", ""]
             order = 1
             if orderAttrName != "":
                 orders = groupedPointsOrderAttrValue.valueDic.get(key)
@@ -333,6 +332,7 @@ class GroupedPoints:
                 roundCounts = groupedPointsRoundCountAttrValue.valueDic.get(key)
                 if len(roundCounts) == 1:
                     roundCount = list(roundCounts)[0]
+            value = list(repeat("", len(percentiles))) + [0, "", "", order, roundCount]
             if len(numbers) != 0:
                 nparr = numpy.array(numbers)
                 value = list(numpy.percentile(nparr, percentiles))
@@ -345,6 +345,8 @@ class GroupedPoints:
                 value += ([mean] if roundCount == -1 else [round(mean, roundCount + 2)])
                 std = numpy.std(nparr)
                 value += ([std] if roundCount == -1 else [round(std, roundCount + 2)])
+                value += [order]
+                value += [roundCount]
                 value += [str(numbers)]
             result.valueDic[key] = value
         return result

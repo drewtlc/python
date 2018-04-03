@@ -8,6 +8,8 @@
 
 import functools
 from functools import reduce
+from itertools import repeat
+from scipy import interpolate
 from base_module import RowsColsSettings, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
 
 class CustomAttribute:
@@ -34,33 +36,36 @@ class CustomAttribute:
     def splitInGroups(self, dataPoints):
         attrNames = ["Группа видов спорта 1", "Группа видов спорта 2", "Группа видов спорта 3", "Группа видов спорта 4"]
         attrDict = {"Группа видов спорта 1": ["Рекомендванный вид спорта 1", "Рекомендванный вид спорта 11", "Рекомендванный вид спорта 111"], "Группа видов спорта 2": ["Рекомендванный вид спорта 2", "Рекомендванный вид спорта 22", "Рекомендванный вид спорта 222"], "Группа видов спорта 3": ["Рекомендванный вид спорта 3", "Рекомендванный вид спорта 33", "Рекомендванный вид спорта 333"], "Группа видов спорта 4": ["Рекомендванный вид спорта 4", "Рекомендванный вид спорта 44", "Рекомендванный вид спорта 444"]}
-        groupName = "циклические"
-        sportName = "Плавание"
+        groupName = "циклические".upper()
+        sportName = "Плавание".upper()
+        goodNames = set(map(lambda v: v.upper(), ['циклические','спортивные единоборства','сложно-координационные','игровые','командные игровые','скоростно-силовые']))
         valueAndCount = dict()
         rowAndValue = dict()
         for dataPoint in dataPoints:
-            curValue = rowAndValue.get(dataPoint.row,"")
+            curValue = rowAndValue.get(dataPoint.row, "")
             additionalCurValue = ""
-            if curValue != "":
-                dataPoint.attributes[self.customAttrName] = curValue
-            else:
+            #if curValue != "":
+            #    dataPoint.attributes[self.customAttrName] = curValue
+            #else:
+            if curValue == "":
                 values = list()
                 additionalValues = list()
                 for attrName in attrNames:
-                    value = dataPoint.attributes.get(attrName, '')
+                    value = dataPoint.attributes.get(attrName, "").upper()
                     if value != "":
                         parts = list(value.split(" - "))
                         if len(parts) == 2:
                             value = parts[1]
                         else:
                             value = parts[0]
-                        values += [value]
-                        additionalValue = ""
-                        if value == groupName:
-                            for additionalAttrName in attrDict.get(attrName, []):
-                                if dataPoint.attributes.get(attrName, '') == sportName:
-                                    additionalValue = sportName
-                        additionalValues += [additionalValue]
+                        if value in goodNames:
+                            values += [value]
+                            additionalValue = ""
+                            if value == groupName:
+                                for additionalAttrName in attrDict.get(attrName, []):
+                                    if dataPoint.attributes.get(additionalAttrName, "").upper() == sportName:
+                                        additionalValue = sportName
+                            additionalValues += [additionalValue]
                 for i in range(len(values)):
                     value = values[i]
                     additionalValue = additionalValues[i]
@@ -71,18 +76,102 @@ class CustomAttribute:
                         count = valueAndCount.get(value, 0)
                         curCount = valueAndCount.get(curValue, 0)
                         if count < curCount:
-                            curCount = count
+                            #curCount = count
+                            curValue = value
                 if curValue == groupName and additionalCurValue == sportName:
                     curValue = ""
-                dataPoint.attributes[self.customAttrName] = curValue
+                #dataPoint.attributes[self.customAttrName] = curValue
                 rowAndValue[dataPoint.row] = curValue
                 if curValue != "":
                     curCount = valueAndCount.get(curValue, 0)
                     valueAndCount[curValue] = (curCount + 1)
-        #print(valueAndCount)
+        print(valueAndCount)
+        #print(reduce(lambda s, v: s+v, valueAndCount.values()))
+        #print(rowAndValue)
+        valueAndRow = dict()
+        for key, value in rowAndValue.items():
+            valueAndRow[value] = (valueAndRow.get(value, []) + [key])
+        #print(valueAndRow)
+        for dataPoint in dataPoints:
+            dataPoint.attributes[self.customAttrName] = rowAndValue.get(dataPoint.row, "")
         return
 
-    # Основная программа
+class CustomScale:
+    def __init__(self):
+        self.data = dict() # {6: [1,2,3], 7:[2,3,2]}
+        self.order = 1
+        self.roundCount = -1
+        self.result = dict()
+        return
+
+    def calc(self):
+        for i in range(len(list(self.data.values())[0])):
+            x = list()
+            y = list()
+            x_int = list()
+            y_int = list()
+            for key in self.data.keys():
+                x += [key]
+                y += [self.data[key][i]]
+                if self.data[key][i] != "":
+                    x_int += [key]
+                    y_int += [self.data[key][i]]
+            if len(y_int)>1:
+                x_int = [x_int[0], x_int[len(x_int) - 1]]
+                y_int = [y_int[0], y_int[len(y_int) - 1]]
+                f = interpolate.interp1d(x_int, y_int)
+                for x_index in range(len(x)):
+                    curX = x[x_index]
+                    if curX >= x_int[0] and curX <= x_int[1]:
+                        y[x_index] = float(f(curX))
+                        if self.roundCount != -1:
+                            y[x_index] = round(y[x_index], self.roundCount)
+                    self.result[curX] = self.result.get(curX, []) + [y[x_index]]
+        return
+
+    def buildScales(groupedPoints, scaleRange = {3: [6,7,8,9,10,11,12]}, percentilesIndexes = [0,1,2,3,4], orderIndex = 8, roundCountIndex = 9):
+        # orderIndex = None
+        # for i in range(len(groupedPoints.attrGroup)):
+        #     if groupedPoints.attrGroup[i] == "order":
+        #         orderIndex = i
+        blocks = dict()
+        keys = list(groupedPoints.valueDic.keys())
+        keys.sort()
+        for key in keys:
+            keyBlock = list()
+            for i in range(len(key)):
+                if i not in scaleRange.keys():
+                    keyBlock += [key[i]]
+            if tuple(keyBlock) not in blocks:
+                scale = CustomScale()
+                for scaleRangeValue in list(scaleRange.values())[0]:
+                    rangeKey = tuple(keyBlock+[float(scaleRangeValue)])
+                    if rangeKey in groupedPoints.valueDic:
+                        valueDicData = groupedPoints.valueDic[rangeKey]
+                        for percentilesIndex in percentilesIndexes:
+                            scale.data[scaleRangeValue] = scale.data.get(scaleRangeValue, []) + [valueDicData[percentilesIndex]]
+                        scale.order = valueDicData[orderIndex]
+                        scale.roundCount = valueDicData[roundCountIndex]
+                scale.calc()
+                blocks[tuple(keyBlock)] = scale
+            groupedPoints.valueDic[key] = list(repeat("", len(percentilesIndexes))) + groupedPoints.valueDic[key]
+        for keyBlock, scale in blocks.items():
+            for scaleKey, scaleResult in scale.result.items():
+                key = tuple(list(keyBlock)+[float(scaleKey)])
+                value = groupedPoints.valueDic[key]
+                for i in range(len(scaleResult)):
+                    value[i] = scaleResult[i]
+                groupedPoints.valueDic[key] = value
+        captions = list()
+        for i in range(list(scaleRange.keys())[0]+1):
+            captions += [groupedPoints.attrGroup[i]]
+        captions += range(1,len(percentilesIndexes)+1)
+        for i in range(list(scaleRange.keys())[0]+1, len(groupedPoints.attrGroup)):
+            captions += [groupedPoints.attrGroup[i]]
+        groupedPoints.attrGroup = captions
+        return
+
+# Основная программа
 def main1():
     # Читаем из файла
     allData = ExcelData.readDataFile('ОБЩИЙ ИТОГ 2016-17_01.12_v8.xlsx', 'Коды', 'Рез-ты 16-17', ExcelData.rng(1, 2244), ExcelData.rng(1, 117))
@@ -135,6 +224,7 @@ def main():
     groupedData_ПолВозрастПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастПоказатель)
     perc_ПолВозрастПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастПоказатель, percentiles, "ВозрУбыв", "Округл")
+    CustomScale.buildScales(perc_ПолВозрастПоказатель, {2: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
     #print(perc_ПолВозрастПоказатель)
     perc_ПолВозрастПоказатель.saveToFile("perc_ПолВозрастПоказатель.csv", perc_ПолВозрастПоказатель.attrGroup)
 
@@ -142,6 +232,7 @@ def main():
     groupedData_ПолВозрастВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастВидПоказатель)
     perc_ПолВозрастВидПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастВидПоказатель, percentiles, "ВозрУбыв", "Округл")
+    CustomScale.buildScales(perc_ПолВозрастВидПоказатель, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
     #print(perc_ПолВозрастВидПоказатель)
     perc_ПолВозрастВидПоказатель.saveToFile("perc_ПолВозрастВидПоказатель.csv",perc_ПолВозрастВидПоказатель.attrGroup)
 
