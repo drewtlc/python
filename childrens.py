@@ -105,6 +105,7 @@ class CustomScale:
         return
 
     def calc(self):
+        #print(self.data.values())
         for i in range(len(list(self.data.values())[0])):
             x = list()
             y = list()
@@ -203,8 +204,8 @@ def main1():
 
 def main():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(1, 2810, 1, 138, 4, None, 57, None)
-    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.2.xlsx', '', 'База 20.03.18', rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(1, 2810, 1, 139, 4, None, 57, None)
+    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.2_v02.xlsx', '', 'База 20.03.18', rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     upDown = lambda value: -1 if value=="↓" else 1
@@ -220,21 +221,37 @@ def main():
 
     percentiles = [5, 25, 50, 75, 95]
 
-    # Адаптационный потенциал
-    groupedData_ПолВозрастПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Возраст"])
-    #print(groupedData_ПолВозрастПоказатель)
-    perc_ПолВозрастПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастПоказатель, percentiles, "ВозрУбыв", "Округл")
-    CustomScale.buildScales(perc_ПолВозрастПоказатель, {2: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
-    #print(perc_ПолВозрастПоказатель)
-    perc_ПолВозрастПоказатель.saveToFile("perc_ПолВозрастПоказатель.csv", perc_ПолВозрастПоказатель.attrGroup)
+    # Группируем по атрибутам "Показатель", "Пол", "Возраст"
+    groupedData_ПоказательПолВозраст = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Возраст"])
+    #print(groupedData_ПоказательПолВозраст)
+    perc_ПоказательПолВозраст = GroupedPoints.percentiles(groupedData_ПоказательПолВозраст, percentiles, "ВозрУбыв", "Округл")
+    CustomScale.buildScales(perc_ПоказательПолВозраст, {2: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    #print(perc_ПоказательПолВозраст)
+    perc_ПоказательПолВозраст.saveToFile("perc_ПоказательПолВозраст.csv", perc_ПоказательПолВозраст.attrGroup)
 
-    # Группируем по атрибутам "Пол", "Возраст (год)", "Группа видов спорта 1 (периф. зрение)"
-    groupedData_ПолВозрастВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол", "Возраст"])
+    # Группируем по атрибутам "Группа видов спорта", "Показатель", "Пол", "Возраст"
+    groupedData_ВидПоказательПолВозраст = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастВидПоказатель)
-    perc_ПолВозрастВидПоказатель = GroupedPoints.percentiles(groupedData_ПолВозрастВидПоказатель, percentiles, "ВозрУбыв", "Округл")
-    CustomScale.buildScales(perc_ПолВозрастВидПоказатель, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
-    #print(perc_ПолВозрастВидПоказатель)
-    perc_ПолВозрастВидПоказатель.saveToFile("perc_ПолВозрастВидПоказатель.csv",perc_ПолВозрастВидПоказатель.attrGroup)
+    perc_ВидПоказательПолВозраст = GroupedPoints.percentiles(groupedData_ВидПоказательПолВозраст, percentiles, "ВозрУбыв", "Округл")
+    CustomScale.buildScales(perc_ВидПоказательПолВозраст, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    #print(perc_ВидПоказательПолВозраст)
+    perc_ВидПоказательПолВозраст.saveToFile("perc_ВидПоказательПолВозраст.csv",perc_ВидПоказательПолВозраст.attrGroup)
+
+    # Группируем по атрибутам "Группа видов спорта", "Показатель"
+    groupedData_ВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель"])
+    #print(groupedData_ВидПоказатель)
+    perc_ВидПоказатель = GroupedPoints.percentiles(groupedData_ВидПоказатель, percentiles, "ВозрУбыв", "Округл", {6,7,8,9,10,11,12})
+    #CustomScale.buildScales(perc_ВидПоказатель, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    #print(perc_ВидПоказатель)
+    perc_ВидПоказатель.saveToFile("perc_ВидПоказатель.csv",perc_ВидПоказатель.attrGroup)
+
+    # Группируем по атрибутам "Группа видов спорта", "Показатель", "Пол"
+    groupedData_ВидПоказательПол = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол"])
+    #print(groupedData_ВидПоказательПол)
+    perc_ВидПоказательПол = GroupedPoints.percentiles(groupedData_ВидПоказательПол, percentiles, "ВозрУбыв", "Округл", {6,7,8,9,10,11,12})
+    #CustomScale.buildScales(perc_ВидПоказательПол, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    #print(perc_ВидПоказательПол)
+    perc_ВидПоказательПол.saveToFile("perc_ВидПоказательПол.csv",perc_ВидПоказательПол.attrGroup)
 
     return
 

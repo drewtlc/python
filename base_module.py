@@ -296,18 +296,26 @@ class GroupedPoints:
             file.write(result)
         return
 
-    def dataPointsValues(groupedDataPoints):  # Из списка точек данных строим список числовых значений
+    def dataPointsValues(groupedDataPoints, filterLambda = None):  # Из списка точек данных строим список числовых значений
         result = GroupedPoints()
         result.attrGroup = groupedDataPoints.attrGroup.copy()
         for key, value in groupedDataPoints.valueDic.items():
-            result.valueDic[key] = list(map(lambda dp: dp.value, list(filter(lambda dp: dp.isFloat == True, value))))
+            if filterLambda == None:
+                filteredList = list(filter(lambda dp: dp.isFloat == True, value))
+            else:
+                filteredList = list(filter(filterLambda, value))
+            result.valueDic[key] = list(map(lambda dp: dp.value, filteredList))
         return result
 
-    def dataPointsNums(groupedDataPoints):  # Из списка точек данных строим список числовых значений
+    def dataPointsNums(groupedDataPoints, filterLambda = None):  # Из списка точек данных строим список числовых значений
         result = GroupedPoints()
         result.attrGroup = groupedDataPoints.attrGroup.copy()
         for key, value in groupedDataPoints.valueDic.items():
-            result.valueDic[key] = list(map(lambda dp: int(dp.attributes.get("№№")), list(filter(lambda dp: dp.isFloat == True, value))))
+            if filterLambda == None:
+                filteredList = list(filter(lambda dp: dp.isFloat == True, value))
+            else:
+                filteredList = list(filter(filterLambda, value))
+            result.valueDic[key] = list(map(lambda dp: int(dp.attributes.get("№№")), filteredList))
         return result
 
     def dataPointsAttrValue(groupedDataPoints, attrName):  # Из списка точек данных строим множество значений атрибута
@@ -328,10 +336,14 @@ class GroupedPoints:
         # result = result.difference(set(''))
         # return result
 
-    def percentiles(groupedDataPoints, percentiles, orderAttrName = "", roundCountAttrName = ""):
+    def percentiles(groupedDataPoints, percentiles, orderAttrName = "", roundCountAttrName = "", ageFilter = set()):
         # Из сгруппированных точек строим сгруппированные списки числовых значений
-        groupedPointsValues = GroupedPoints.dataPointsValues(groupedDataPoints)
-        groupedPointsNums = GroupedPoints.dataPointsNums(groupedDataPoints)
+        if len(ageFilter)==0:
+            filterLambda = lambda dp: dp.isFloat == True
+        else:
+            filterLambda = lambda dp: dp.isFloat == True and int(dp.attributes.get("Возраст")) in ageFilter
+        groupedPointsValues = GroupedPoints.dataPointsValues(groupedDataPoints, filterLambda)
+        groupedPointsNums = GroupedPoints.dataPointsNums(groupedDataPoints, filterLambda)
         groupedPointsOrderAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, orderAttrName)
         groupedPointsRoundCountAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, roundCountAttrName)
         result = GroupedPoints()
