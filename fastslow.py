@@ -222,7 +222,7 @@ def main():
 
 # def rang():
 #     # Читаем из файла
-#     rowsColsSettings = RowsColsSettings(1, 121, 1, 3, 2, None, 3, None)
+#     rowsColsSettings = RowsColsSettings(1, 73, 1, 3, 2, None, 3, None)
 #     allData = ExcelData.readDataFile("Таблица (все данные) v06.xlsx", '', "Рейтинги", rowsColsSettings)
 #     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
 #     # Переводим ячейки в точки с атрибутами
