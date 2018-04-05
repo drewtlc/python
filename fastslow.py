@@ -70,7 +70,9 @@ class CalcResult:
         result += [value] + ["Сред.один." if value>level else "Сред.отлич."]
         result += Tools.string(list(self.percentilesM))
         result += Tools.string(list(self.percentilesW))
-        
+        result += [str(len(self.numbersM))+"="+str(self.numbersM)]
+        result += [str(len(self.numbersW))+"="+str(self.numbersW)]
+
         for i in range(len(self.diagramM.cumcount)):
             result += [Tools.string(self.diagramM.lowerlimit + i * self.diagramM.binsize)]
         for i in range(len(self.diagramM.cumcount)):
@@ -89,18 +91,19 @@ class CalcResult:
         result += ["Normal test value (M)", "Normal test (M)", "Normal test value (W)", "Normal test (W)"]
         result += ["Сравнение средних value T-test", "Сравнение средних T-test", "Mean value (M)", "Mean value (W)"]
         result += ["Сравнение средних value MU", "Сравнение средних MU"]+Tools.string(CalcResult.percentiles)+Tools.string(CalcResult.percentiles)
+        result += ["Данные (М)", "Данные (Ж)"]
         return reduce(lambda s,i: str(s)+";"+str(i), result)        
 
     def calc(groupedDataPoints, keySecondPartM, keySecondPartW):
         result = dict()
-        groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
-        keyFirstParts = list(set(reduce(lambda l1,l2: l1+[l2], list(map(lambda key: list(key)[0], groupedPointsWithValue.valueDic.keys())), list())))
+        groupedPointsValues = GroupedPoints.dataPointsValues(groupedDataPoints)
+        keyFirstParts = list(set(reduce(lambda l1,l2: l1+[l2], list(map(lambda key: list(key)[0], groupedPointsValues.valueDic.keys())), list())))
         keyFirstParts.sort()
         for keyFirstPart in keyFirstParts:
             keyM = [keyFirstPart] + keySecondPartM
             keyW = [keyFirstPart] + keySecondPartW
-            numbersM = groupedPointsWithValue.valueDic[tuple(keyM)]
-            numbersW = groupedPointsWithValue.valueDic[tuple(keyW)]
+            numbersM = groupedPointsValues.valueDic[tuple(keyM)]
+            numbersW = groupedPointsValues.valueDic[tuple(keyW)]
             tests = CalcResult()
             tests.kstestM = scipy.stats.kstest(numbersM, "norm")
             tests.kstestW = scipy.stats.kstest(numbersW, "norm")
@@ -206,7 +209,7 @@ def main():
     #groupedData.debug()
     #print(groupedData)
     #normTestResult = GroupedPoints.shapiro(groupedData)
-    #groupedValues = GroupedPoints.dataPointsWithValue(groupedData)
+    #groupedValues = GroupedPoints.dataPointsValues(groupedData)
     print(groupedData)
     res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
     # Запись в файл с разделителями
