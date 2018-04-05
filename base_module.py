@@ -113,11 +113,18 @@ class DataPoint:
 
     def setValue(self, value):
         try:
-            self.value = float(value)
+            self.value = float(str(value))
             self.isFloat = True
         except ValueError:
             self.value = value
             self.isFloat = False
+        if self.isFloat == False:
+            try:
+                self.value = float(str(value).replace(",","."))
+                self.isFloat = True
+            except ValueError:
+                self.value = value
+                self.isFloat = False
         return
 
     def toStr(self):
@@ -152,8 +159,8 @@ class DataPoint:
             allColsSet.add(tablePoint.col)
         # Строим словари атрибутов. Сначала надо определить строку с заголовкаси колонок
         captionRow = dataRowsList[0] - 1  # Строка с заголовками
-        while not (captionRow in allRowsSet) and (
-                captionRow > 0):  # Проверим, что такой номер строки есть во множестве всех номеров. ЕСли нет, то будем искать строку выше
+        # Проверим, что такой номер строки есть во множестве всех номеров. ЕСли нет, то будем искать строку выше
+        while not (captionRow in allRowsSet) and (captionRow > 0):
             captionRow = captionRow - 1
         if captionRow == 0:
             return
@@ -289,11 +296,18 @@ class GroupedPoints:
             file.write(result)
         return
 
-    def dataPointsWithValue(groupedDataPoints):  # Из списка точек данных строим список числовых значений
+    def dataPointsValues(groupedDataPoints):  # Из списка точек данных строим список числовых значений
         result = GroupedPoints()
         result.attrGroup = groupedDataPoints.attrGroup.copy()
         for key, value in groupedDataPoints.valueDic.items():
             result.valueDic[key] = list(map(lambda dp: dp.value, list(filter(lambda dp: dp.isFloat == True, value))))
+        return result
+
+    def dataPointsNums(groupedDataPoints):  # Из списка точек данных строим список числовых значений
+        result = GroupedPoints()
+        result.attrGroup = groupedDataPoints.attrGroup.copy()
+        for key, value in groupedDataPoints.valueDic.items():
+            result.valueDic[key] = list(map(lambda dp: int(dp.attributes.get("№№")), list(filter(lambda dp: dp.isFloat == True, value))))
         return result
 
     def dataPointsAttrValue(groupedDataPoints, attrName):  # Из списка точек данных строим множество значений атрибута
@@ -316,12 +330,13 @@ class GroupedPoints:
 
     def percentiles(groupedDataPoints, percentiles, orderAttrName = "", roundCountAttrName = ""):
         # Из сгруппированных точек строим сгруппированные списки числовых значений
-        groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
+        groupedPointsValues = GroupedPoints.dataPointsValues(groupedDataPoints)
+        groupedPointsNums = GroupedPoints.dataPointsNums(groupedDataPoints)
         groupedPointsOrderAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, orderAttrName)
         groupedPointsRoundCountAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, roundCountAttrName)
         result = GroupedPoints()
-        result.attrGroup = groupedPointsWithValue.attrGroup.copy() + percentiles.copy() + ["count", "mean", "std", "order", "round", "data"]
-        for key, numbers in groupedPointsWithValue.valueDic.items():
+        result.attrGroup = groupedPointsValues.attrGroup.copy() + percentiles.copy() + ["count", "mean", "std", "order", "round", "data", "nums"]
+        for key, numbers in groupedPointsValues.valueDic.items():
             order = 1
             if orderAttrName != "":
                 orders = groupedPointsOrderAttrValue.valueDic.get(key)
@@ -348,30 +363,31 @@ class GroupedPoints:
                 value += [order]
                 value += [roundCount]
                 value += [str(numbers)]
+                value += [str(groupedPointsNums.valueDic[key])]
             result.valueDic[key] = value
         return result
 
     def kstest(groupedDataPoints):
-        groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
+        groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
         result = GroupedPoints()
-        result.attrGroup = groupedPointsWithValue.attrGroup.copy() + ["KS D", "KS p-value"]
-        for key, numbers in groupedPointsWithValue.valueDic.items():
+        result.attrGroup = groupedPointsValues.attrGroup.copy() + ["KS D", "KS p-value"]
+        for key, numbers in groupedPointsValues.valueDic.items():
             result.valueDic[key] = list(scipy.stats.kstest(numbers, "norm"))
         return result
 
     def shapiro(groupedDataPoints):
-        groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
+        groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
         result = GroupedPoints()
-        result.attrGroup = groupedPointsWithValue.attrGroup.copy() + ["W", "p-value", "Distrib"]
-        for key, numbers in groupedPointsWithValue.valueDic.items():
+        result.attrGroup = groupedPointsValues.attrGroup.copy() + ["W", "p-value", "Distrib"]
+        for key, numbers in groupedPointsValues.valueDic.items():
             tResult = list(scipy.stats.shapiro(numbers))
             result.valueDic[key] = tResult + ["normal" if tResult[1] > 0.05 else "not normal"]
         return result
 
     def describe(groupedDataPoints):
-        groupedPointsWithValue = GroupedPoints.dataPointsWithValue(groupedDataPoints)
+        groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
         result = GroupedPoints()
-        result.attrGroup = groupedPointsWithValue.attrGroup.copy()  # + ["KS D", "KS p-value"]
-        for key, numbers in groupedPointsWithValue.valueDic.items():
+        result.attrGroup = groupedPointsValues.attrGroup.copy()  # + ["KS D", "KS p-value"]
+        for key, numbers in groupedPointsValues.valueDic.items():
             result.valueDic[key] = list(scipy.stats.describe(numbers))
         return result
