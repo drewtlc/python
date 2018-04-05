@@ -197,7 +197,7 @@ class CalcResult:
 def main():
     # Читаем из файла
     rowsColsSettings = RowsColsSettings(1, 61, 1, 30, 2, None, 7, None)
-    allData = ExcelData.readDataFile("Таблица (все данные) v05.xlsx", '', "Данные", rowsColsSettings)
+    allData = ExcelData.readDataFile("Таблица (все данные) v06.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : "Показатель"})
@@ -220,5 +220,32 @@ def main():
     CalcResult.boxplots(res, "APResults_boxplots.png", orderDict)
     return
 
+# def rang():
+#     # Читаем из файла
+#     rowsColsSettings = RowsColsSettings(1, 121, 1, 3, 2, None, 3, None)
+#     allData = ExcelData.readDataFile("Таблица (все данные) v06.xlsx", '', "Рейтинги", rowsColsSettings)
+#     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
+#     # Переводим ячейки в точки с атрибутами
+#     dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : "Показатель"})
+#     print("Обработано точек данных: "+str(len(dataPoints)))
+#     # Группируем по атрибутам "Пол", "Тип покрытия"
+#     groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол"])
+#     #orderDict = groupedData.buildColDict("Показатель")
+#     #groupedData = GroupedDataPoints.groupByList(dataPoints, ["Тип покрытия", "Показатель"])
+#     #groupedData.debug()
+#     #print(groupedData)
+#     #normTestResult = GroupedPoints.shapiro(groupedData)
+#     #groupedValues = GroupedPoints.dataPointsValues(groupedData)
+#     print(groupedData)
+#     res = CalcResult.calc(groupedData, ["Мужчины"], ["Женщины"])
+#     # Запись в файл с разделителями
+#     CalcResult.write(res,"APResults.csv")
+#     # Вывод диаграмм
+#     CalcResult.diagrams(res, "APResults_diagrams.png")
+#     # Вывод ящиков с усами
+#     CalcResult.boxplots(res, "APResults_boxplots.png")
+#     return
+
 main()
+#rang()
 
