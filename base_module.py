@@ -3,16 +3,21 @@
 import xlrd
 import functools
 from functools import reduce
-import numpy
-import scipy.stats
-from itertools import repeat
 
 class Tools:
     def string(val):
         if type(val) is list:
             return list(map(Tools.string, val))
         else:
-            return str(val).replace(".", ",")
+            return str(val).replace(".", ",") if (val is not None) else ''
+    def withDelim(val, delim = ";"):
+        if type(val) is list:
+            return (reduce(lambda s, i: str(s) + delim + str(i), map(Tools.string, val))) if len(val)>0 else ""
+        else:
+            return val
+
+    def listIndexes(listVal, add=0):
+        return list(range(add, len(listVal) + add))
 
 class RowsColsSettings:
     def __init__(self, строкаНачало, строкаКонец, столбецНачало, столбецКонец, строкаДанныхНачало =- 1, строкаДанныхКонец =- 1, столбецДанныхНачало =- 1, столбецДанныхКонец =- 1):
@@ -276,12 +281,12 @@ class GroupedDataPoints:
 class GroupedPoints:
     def __init__(self):
         self.attrGroup = list()  # [Пол,Возраст]
-        self.valueDic = dict()  # {ж,7}={1,2}, {ж,8}={3,4}
+        self.valueDic = dict()  # {ж,7}=ChildrenValue, {ж,8}=ChildrenValue
 
     def __str__(self):
         keys = list(self.valueDic.keys())
         keys.sort()
-        mapLambda = lambda i: str(keys[i]) + '=' + str(self.valueDic[keys[i]])
+        mapLambda = lambda i: Tools.string(keys[i]) + '=' + Tools.string(self.valueDic[keys[i]])
         reduceLambda = lambda s, nextS: s + ";\n" + nextS
         return "{" + str(self.attrGroup) + "\n" + reduce(reduceLambda, map(mapLambda, range(len(keys)))) + "}"
 
@@ -289,7 +294,8 @@ class GroupedPoints:
         keys = list(self.valueDic.keys())
         keys.sort()
         reduceLambda = lambda s, nextS: Tools.string(s) + delim + Tools.string(nextS)
-        mapLambda = lambda i: Tools.string(reduce(reduceLambda, list(keys[i]))) + delim + Tools.string(reduce(reduceLambda, list(self.valueDic[keys[i]])))
+        #mapLambda = lambda i: Tools.string(reduce(reduceLambda, list(keys[i]))) + delim + Tools.string(reduce(reduceLambda, list(self.valueDic[keys[i]])))
+        mapLambda = lambda i: Tools.string(reduce(reduceLambda, list(keys[i]))) + delim + Tools.string(self.valueDic[keys[i]])
         reduceStrLambda = lambda s, nextS: s + "\n" + nextS
         result = ("" if len(captions)==0 else reduce(reduceLambda, captions)) + "\n" + reduce(reduceStrLambda, map(mapLambda, range(len(keys))))
         with open(fileName, "w") as file:
@@ -336,70 +342,27 @@ class GroupedPoints:
         # result = result.difference(set(''))
         # return result
 
-    def percentiles(groupedDataPoints, percentiles, orderAttrName = "", roundCountAttrName = "", ageFilter = set()):
-        # Из сгруппированных точек строим сгруппированные списки числовых значений
-        if len(ageFilter)==0:
-            filterLambda = lambda dp: dp.isFloat == True
-        else:
-            filterLambda = lambda dp: dp.isFloat == True and int(dp.attributes.get("Возраст")) in ageFilter
-        groupedPointsValues = GroupedPoints.dataPointsValues(groupedDataPoints, filterLambda)
-        groupedPointsNums = GroupedPoints.dataPointsNums(groupedDataPoints, filterLambda)
-        groupedPointsOrderAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, orderAttrName)
-        groupedPointsRoundCountAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, roundCountAttrName)
-        result = GroupedPoints()
-        result.attrGroup = groupedPointsValues.attrGroup.copy() + percentiles.copy() + ["count", "mean", "std", "order", "round", "data", "nums"]
-        for key, numbers in groupedPointsValues.valueDic.items():
-            order = 1
-            if orderAttrName != "":
-                orders = groupedPointsOrderAttrValue.valueDic.get(key)
-                if len(orders) == 1:
-                    order = list(orders)[0]
-            roundCount = -1
-            if roundCountAttrName != "":
-                roundCounts = groupedPointsRoundCountAttrValue.valueDic.get(key)
-                if len(roundCounts) == 1:
-                    roundCount = list(roundCounts)[0]
-            value = list(repeat("", len(percentiles))) + [0, "", "", order, roundCount]
-            if len(numbers) != 0:
-                nparr = numpy.array(numbers)
-                value = list(numpy.percentile(nparr, percentiles))
-                if roundCount != -1:
-                    value = list(map(lambda v: round(v, roundCount), value))
-                if order == -1:
-                    value.reverse()
-                value += [len(numbers)]
-                mean = numpy.mean(nparr)
-                value += ([mean] if roundCount == -1 else [round(mean, roundCount + 2)])
-                std = numpy.std(nparr)
-                value += ([std] if roundCount == -1 else [round(std, roundCount + 2)])
-                value += [order]
-                value += [roundCount]
-                value += [str(numbers)]
-                value += [str(groupedPointsNums.valueDic[key])]
-            result.valueDic[key] = value
-        return result
+    # def kstest(groupedDataPoints):
+    #     groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
+    #     result = GroupedPoints()
+    #     result.attrGroup = groupedPointsValues.attrGroup.copy() + ["KS D", "KS p-value"]
+    #     for key, numbers in groupedPointsValues.valueDic.items():
+    #         result.valueDic[key] = list(scipy.stats.kstest(numbers, "norm"))
+    #     return result
 
-    def kstest(groupedDataPoints):
-        groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
-        result = GroupedPoints()
-        result.attrGroup = groupedPointsValues.attrGroup.copy() + ["KS D", "KS p-value"]
-        for key, numbers in groupedPointsValues.valueDic.items():
-            result.valueDic[key] = list(scipy.stats.kstest(numbers, "norm"))
-        return result
+    # def shapiro(groupedDataPoints):
+    #     groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
+    #     result = GroupedPoints()
+    #     result.attrGroup = groupedPointsValues.attrGroup.copy() + ["W", "p-value", "Distrib"]
+    #     for key, numbers in groupedPointsValues.valueDic.items():
+    #         tResult = list(scipy.stats.shapiro(numbers))
+    #         result.valueDic[key] = tResult + ["normal" if tResult[1] > 0.05 else "not normal"]
+    #     return result
 
-    def shapiro(groupedDataPoints):
-        groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
-        result = GroupedPoints()
-        result.attrGroup = groupedPointsValues.attrGroup.copy() + ["W", "p-value", "Distrib"]
-        for key, numbers in groupedPointsValues.valueDic.items():
-            tResult = list(scipy.stats.shapiro(numbers))
-            result.valueDic[key] = tResult + ["normal" if tResult[1] > 0.05 else "not normal"]
-        return result
-
-    def describe(groupedDataPoints):
-        groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
-        result = GroupedPoints()
-        result.attrGroup = groupedPointsValues.attrGroup.copy()  # + ["KS D", "KS p-value"]
-        for key, numbers in groupedPointsValues.valueDic.items():
-            result.valueDic[key] = list(scipy.stats.describe(numbers))
-        return result
+    # def describe(groupedDataPoints):
+    #     groupedPointsValues = GroupedPoints.groupedPointsValues(groupedDataPoints)
+    #     result = GroupedPoints()
+    #     result.attrGroup = groupedPointsValues.attrGroup.copy()  # + ["KS D", "KS p-value"]
+    #     for key, numbers in groupedPointsValues.valueDic.items():
+    #         result.valueDic[key] = list(scipy.stats.describe(numbers))
+    #     return result

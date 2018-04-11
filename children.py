@@ -10,7 +10,9 @@ import functools
 from functools import reduce
 from itertools import repeat
 from scipy import interpolate
-from base_module import RowsColsSettings, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
+import numpy
+import warnings
+from base_module import Tools, RowsColsSettings, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
 
 class CustomAttribute:
     def __init__(self, customAttrName, attrListToProcess = [], attrValueToSearch = "", calcLambda = lambda dp: None):
@@ -96,81 +98,188 @@ class CustomAttribute:
             dataPoint.attributes[self.customAttrName] = rowAndValue.get(dataPoint.row, "")
         return
 
+
+class ChildrenValue:
+    def __init__(self, order = 1, roundCount = -1):
+        self.scaleValues = list()
+        self.percValues = list()
+        self.count = 0
+        self.mean = None
+        self.std = None
+        self.order = order
+        self.roundCount = roundCount
+        self.data = list()
+        self.nums = list()
+
+    def __str__(self):
+        delim = ";"
+        return Tools.withDelim(Tools.string(self.scaleValues), delim) + delim + \
+               Tools.withDelim(Tools.string(self.percValues), delim) + delim + \
+               Tools.string(self.count) + delim + \
+               Tools.string(self.mean) + delim + \
+               Tools.string(self.std) + delim + \
+               Tools.string(self.order) + delim + \
+               Tools.string(self.roundCount) + delim + \
+               str(self.data) + delim + \
+               str(self.nums)
+
+
+class CalcLogic:
+    def percentiles(groupedDataPoints, percentiles, orderAttrName = "", roundCountAttrName = "", ageFilter = set()):
+        # Из сгруппированных точек строим сгруппированные списки числовых значений
+        if len(ageFilter)==0:
+            filterLambda = lambda dp: dp.isFloat == True
+        else:
+            filterLambda = lambda dp: (dp.isFloat == True) and (int(dp.attributes.get("Возраст")) in ageFilter)
+        groupedPointsValues = GroupedPoints.dataPointsValues(groupedDataPoints, filterLambda)
+        groupedPointsNums = GroupedPoints.dataPointsNums(groupedDataPoints, filterLambda)
+        groupedPointsOrderAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, orderAttrName)
+        groupedPointsRoundCountAttrValue = GroupedPoints.dataPointsAttrValue(groupedDataPoints, roundCountAttrName)
+        result = GroupedPoints()
+        result.attrGroup = groupedPointsValues.attrGroup.copy() # + Tools.listIndexes(percentiles, 1) + percentiles.copy() + ["count", "mean", "std", "order", "roundCount", "data", "nums"]
+        for key, numbers in groupedPointsValues.valueDic.items():
+            order = 1
+            if orderAttrName != "":
+                orders = groupedPointsOrderAttrValue.valueDic.get(key)
+                if len(orders) == 1:
+                    order = list(orders)[0]
+            roundCount = -1
+            if roundCountAttrName != "":
+                roundCounts = groupedPointsRoundCountAttrValue.valueDic.get(key)
+                if len(roundCounts) == 1:
+                    roundCount = list(roundCounts)[0]
+            value = ChildrenValue(order, roundCount) # значение - экземпляр типа ChildrenValue
+            if len(numbers) != 0:
+                nparr = numpy.array(numbers)
+                value.percValues = list(numpy.percentile(nparr, percentiles))
+                if roundCount != -1:
+                    value.percValues = list(map(lambda v: round(v, roundCount), value.percValues))
+                if order == -1:
+                    value.percValues.reverse()
+                value.count = len(numbers)
+                mean = numpy.mean(nparr)
+                value.mean = (mean if roundCount == -1 else round(mean, roundCount + 2))
+                std = numpy.std(nparr)
+                value.std = (std if roundCount == -1 else round(std, roundCount + 2))
+                value.data = numbers
+                value.nums = groupedPointsNums.valueDic[key]
+            result.valueDic[key] = value
+        return result
+
 class CustomScale:
-    def __init__(self):
-        self.data = dict() # {6: [1,2,3], 7:[2,3,2]}
-        self.order = 1
-        self.roundCount = -1
+    def __init__(self, order = 1, roundCount = -1):
+        self.data = dict() # {6: [1,2,3], 7: [2,3,2]}
+        self.counts = dict()
+        self.order = order
+        self.roundCount = roundCount
         self.result = dict()
         return
 
     def calc(self):
         #print(self.data.values())
-        for i in range(len(list(self.data.values())[0])):
+        if len(self.data) != 0:
+            ages = list(self.data.keys())
+            ages.sort()
             x = list()
+            cols = len(self.data.get(ages[0]))
+            #y = [repeat([], cols)]
             y = list()
-            x_int = list()
-            y_int = list()
-            for key in self.data.keys():
-                x += [key]
-                y += [self.data[key][i]]
-                if self.data[key][i] != "":
-                    x_int += [key]
-                    y_int += [self.data[key][i]]
-            if len(y_int)>1:
-                x_int = [x_int[0], x_int[len(x_int) - 1]]
-                y_int = [y_int[0], y_int[len(y_int) - 1]]
-                f = interpolate.interp1d(x_int, y_int)
-                for x_index in range(len(x)):
-                    curX = x[x_index]
-                    if curX >= x_int[0] and curX <= x_int[1]:
-                        y[x_index] = float(f(curX))
-                        if self.roundCount != -1:
-                            y[x_index] = round(y[x_index], self.roundCount)
-                    self.result[curX] = self.result.get(curX, []) + [y[x_index]]
+            for i in range(cols):
+                y.append([])
+            for age in ages:
+                count = self.counts.get(age)
+                for i in range(count):
+                    x.append(age)
+                for i in range(cols):
+                    for j in range(count):
+                        y[i].append(self.data.get(age)[i])
+            f = list()
+            for i in range(cols):
+                p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y[i]), 1))
+                # with warnings.catch_warnings():
+                #     warnings.filterwarnings('error')
+                #     try:
+                #         p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y[i]), 1))
+                #     except numpy.RankWarning:
+                #         stop = True
+                x1 = ages[0]
+                x2 = ages[len(ages)-1]
+                y1 = p(x1)
+                y2 = p(x2)
+                pair = None
+                if self.order == 1 and y1 <= y2:
+                    pair = [y1, y2]
+                if self.order == 1 and y1 > y2:
+                    pair = [y2, y1]
+                if self.order == -1 and y1 >= y2:
+                    pair = [y1, y2]
+                if self.order == -1 and y1 < y2:
+                    pair = [y2, y1]
+                f.append(interpolate.interp1d([x1, x2], pair))
+            for age in ages:
+                vals = list()
+                for i in range(cols):
+                    val = float(f[i](age))
+                    if self.roundCount != -1:
+                        val = round(val, self.roundCount)
+                    vals.append(val)
+                self.result[age] = vals
+        # for i in range(len(list(self.data.values())[0])):
+        #     x = list()
+        #     y = list()
+        #     x_int = list()
+        #     y_int = list()
+        #     for key in self.data.keys():
+        #         x += [key]
+        #         y += [self.data[key][i]]
+        #         if self.data[key][i] != "":
+        #             x_int += [key]
+        #             y_int += [self.data[key][i]]
+        #     if len(y_int)>1:
+        #         x_int = [x_int[0], x_int[len(x_int) - 1]]
+        #         y_int = [y_int[0], y_int[len(y_int) - 1]]
+        #         f = interpolate.interp1d(x_int, y_int)
+        #         for x_index in range(len(x)):
+        #             curX = x[x_index]
+        #             if curX >= x_int[0] and curX <= x_int[1]:
+        #                 y[x_index] = float(f(curX))
+        #                 if self.roundCount != -1:
+        #                     y[x_index] = roundCount(y[x_index], self.roundCount)
+        #             self.result[curX] = self.result.get(curX, []) + [y[x_index]]
         return
 
-    def buildScales(groupedPoints, scaleRange = {3: [6,7,8,9,10,11,12]}, percentilesIndexes = [0,1,2,3,4], orderIndex = 8, roundCountIndex = 9):
-        # orderIndex = None
-        # for i in range(len(groupedPoints.attrGroup)):
-        #     if groupedPoints.attrGroup[i] == "order":
-        #         orderIndex = i
-        blocks = dict()
-        keys = list(groupedPoints.valueDic.keys())
-        keys.sort()
-        for key in keys:
-            keyBlock = list()
-            for i in range(len(key)):
-                if i not in scaleRange.keys():
-                    keyBlock += [key[i]]
-            if tuple(keyBlock) not in blocks:
-                scale = CustomScale()
-                for scaleRangeValue in list(scaleRange.values())[0]:
-                    rangeKey = tuple(keyBlock+[float(scaleRangeValue)])
-                    if rangeKey in groupedPoints.valueDic:
-                        valueDicData = groupedPoints.valueDic[rangeKey]
-                        for percentilesIndex in percentilesIndexes:
-                            scale.data[scaleRangeValue] = scale.data.get(scaleRangeValue, []) + [valueDicData[percentilesIndex]]
-                        scale.order = valueDicData[orderIndex]
-                        scale.roundCount = valueDicData[roundCountIndex]
-                scale.calc()
-                blocks[tuple(keyBlock)] = scale
-            groupedPoints.valueDic[key] = list(repeat("", len(percentilesIndexes))) + groupedPoints.valueDic[key]
-        for keyBlock, scale in blocks.items():
-            for scaleKey, scaleResult in scale.result.items():
-                key = tuple(list(keyBlock)+[float(scaleKey)])
-                value = groupedPoints.valueDic[key]
-                for i in range(len(scaleResult)):
-                    value[i] = scaleResult[i]
-                groupedPoints.valueDic[key] = value
-        captions = list()
-        for i in range(list(scaleRange.keys())[0]+1):
-            captions += [groupedPoints.attrGroup[i]]
-        captions += range(1,len(percentilesIndexes)+1)
-        for i in range(list(scaleRange.keys())[0]+1, len(groupedPoints.attrGroup)):
-            captions += [groupedPoints.attrGroup[i]]
-        groupedPoints.attrGroup = captions
+    def buildScales(groupedPoints, scaleAttrName = "Возраст"):
+        # Оределим место scaleAttrName в списке, который составляет ключ
+        scaleAttrIndex = groupedPoints.attrGroup.index(scaleAttrName)
+        # Определим возможные значения поля scaleAttrName
+        scaleAttrDict = dict()
+        for key in groupedPoints.valueDic.keys():
+            keyList = list(key)
+            scaleAttrValue = keyList[scaleAttrIndex]
+            keyList.pop(scaleAttrIndex)
+            keyTuple = tuple(keyList)
+            scaleAttrDict[keyTuple] = scaleAttrDict.get(keyTuple, []) + [scaleAttrValue]
+        scalesDict = dict()
+        for scaleAttrKey, scaleAttrValues in scaleAttrDict.items():
+            scale = CustomScale()
+            for scaleAttrValue in scaleAttrValues:
+                key = list(scaleAttrKey)
+                key.insert(scaleAttrIndex, scaleAttrValue)
+                childrenValue = groupedPoints.valueDic[tuple(key)]
+                scale.order = childrenValue.order
+                scale.roundCount = childrenValue.roundCount
+                if len(childrenValue.percValues)>0:
+                    scale.data[scaleAttrValue] = childrenValue.percValues
+                    scale.counts[scaleAttrValue] = childrenValue.count
+            scale.calc()
+            for scaleAttrValue in scaleAttrValues:
+                key = list(scaleAttrKey)
+                key.insert(scaleAttrIndex, scaleAttrValue)
+                childrenValue = groupedPoints.valueDic[tuple(key)]
+                if len(childrenValue.percValues) > 0:
+                    childrenValue.scaleValues = scale.result[scaleAttrValue]
         return
+
 
 # Основная программа
 def main1():
@@ -204,54 +313,56 @@ def main1():
 
 def main():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(1, 2810, 1, 139, 4, None, 57, None)
-    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.2_v02.xlsx', '', 'База 20.03.18', rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(1, 2810, 1, 138, 4, None, 57, None)
+    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.2 (1).xlsx', '', 'База 20.03.18', rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     upDown = lambda value: -1 if value=="↓" else 1
     roundCount = lambda value: 2 if value == "0,11" or value == 0.11 else (1 if value == "0,1" or value == 0.1 else (0 if value == "целое" else -1))
     dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : 'ВозрУбыв', 2 : 'Округл', 3 : 'Показатель'}, {1 : upDown, 2 : roundCount}, False)
     print("Обработано точек данных: "+str(len(dataPoints)))
-    #attrAge = CustomAttribute("Возраст (год)", [], "", lambda dp: round(dp.attributes.get("Возраст",'')) if dp.isFloat else 0)
+    #attrAge = CustomAttribute("Возраст (год)", [], "", lambda dp: roundCount(dp.attributes.get("Возраст",'')) if dp.isFloat else 0)
     #attrAge.addCustomAttribute(dataPoints)
     attrVid = CustomAttribute("Группа видов спорта 1 (периф. зрение)", [], "", lambda dp: "" if dp.attributes.get("Группа видов спорта 1",'')=="10 - циклические" and (dp.attributes.get("Рекомендванный вид спорта 1",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 11",'')=="Плавание" or dp.attributes.get("Рекомендванный вид спорта 111",'')=="Плавание" ) else dp.attributes.get("Группа видов спорта 1",''))
     attrVid.addCustomAttribute(dataPoints)
     attrGroup = CustomAttribute("Группа видов спорта")
     attrGroup.splitInGroups(dataPoints)
 
-    percentiles = [5, 25, 50, 75, 95]
+    percentiles = [5, 10, 25, 40, 50, 60, 75, 90, 95]
+    ages = {6, 7, 8, 9, 10, 11, 12}
+
 
     # Группируем по атрибутам "Показатель", "Пол", "Возраст"
     groupedData_ПоказательПолВозраст = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Возраст"])
     #print(groupedData_ПоказательПолВозраст)
-    perc_ПоказательПолВозраст = GroupedPoints.percentiles(groupedData_ПоказательПолВозраст, percentiles, "ВозрУбыв", "Округл")
-    CustomScale.buildScales(perc_ПоказательПолВозраст, {2: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    perc_ПоказательПолВозраст = CalcLogic.percentiles(groupedData_ПоказательПолВозраст, percentiles, "ВозрУбыв", "Округл", ages)
+    CustomScale.buildScales(perc_ПоказательПолВозраст, "Возраст")
     #print(perc_ПоказательПолВозраст)
-    perc_ПоказательПолВозраст.saveToFile("perc_ПоказательПолВозраст.csv", perc_ПоказательПолВозраст.attrGroup)
+    perc_ПоказательПолВозраст.saveToFile("res_ПоказательПолВозраст.csv", perc_ПоказательПолВозраст.attrGroup + Tools.listIndexes(percentiles, 1) + percentiles + ["count", "mean", "std", "order", "roundCount", "data", "nums"])
 
     # Группируем по атрибутам "Группа видов спорта", "Показатель", "Пол", "Возраст"
     groupedData_ВидПоказательПолВозраст = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол", "Возраст"])
     #print(groupedData_ПолВозрастВидПоказатель)
-    perc_ВидПоказательПолВозраст = GroupedPoints.percentiles(groupedData_ВидПоказательПолВозраст, percentiles, "ВозрУбыв", "Округл")
-    CustomScale.buildScales(perc_ВидПоказательПолВозраст, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    perc_ВидПоказательПолВозраст = CalcLogic.percentiles(groupedData_ВидПоказательПолВозраст, percentiles, "ВозрУбыв", "Округл", ages)
+    CustomScale.buildScales(perc_ВидПоказательПолВозраст, "Возраст")
     #print(perc_ВидПоказательПолВозраст)
-    perc_ВидПоказательПолВозраст.saveToFile("perc_ВидПоказательПолВозраст.csv",perc_ВидПоказательПолВозраст.attrGroup)
+    perc_ВидПоказательПолВозраст.saveToFile("res_ВидПоказательПолВозраст.csv",perc_ВидПоказательПолВозраст.attrGroup+ Tools.listIndexes(percentiles, 1) + percentiles + ["count", "mean", "std", "order", "roundCount", "data", "nums"])
 
     # Группируем по атрибутам "Группа видов спорта", "Показатель"
     groupedData_ВидПоказатель = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель"])
     #print(groupedData_ВидПоказатель)
-    perc_ВидПоказатель = GroupedPoints.percentiles(groupedData_ВидПоказатель, percentiles, "ВозрУбыв", "Округл", {6,7,8,9,10,11,12})
-    #CustomScale.buildScales(perc_ВидПоказатель, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    perc_ВидПоказатель = CalcLogic.percentiles(groupedData_ВидПоказатель, percentiles, "ВозрУбыв", "Округл", ages)
+    #CustomScale.buildScales(perc_ВидПоказатель, "Возраст")
     #print(perc_ВидПоказатель)
-    perc_ВидПоказатель.saveToFile("perc_ВидПоказатель.csv",perc_ВидПоказатель.attrGroup)
+    perc_ВидПоказатель.saveToFile("res_ВидПоказатель.csv",perc_ВидПоказатель.attrGroup+ Tools.listIndexes(percentiles, 1) + percentiles + ["count", "mean", "std", "order", "roundCount", "data", "nums"])
 
     # Группируем по атрибутам "Группа видов спорта", "Показатель", "Пол"
     groupedData_ВидПоказательПол = GroupedDataPoints.groupByList(dataPoints, ["Группа видов спорта", "Показатель", "Пол"])
     #print(groupedData_ВидПоказательПол)
-    perc_ВидПоказательПол = GroupedPoints.percentiles(groupedData_ВидПоказательПол, percentiles, "ВозрУбыв", "Округл", {6,7,8,9,10,11,12})
-    #CustomScale.buildScales(perc_ВидПоказательПол, {3: [6,7,8,9,10,11,12]}, [0,1,2,3,4], 8, 9)
+    perc_ВидПоказательПол = CalcLogic.percentiles(groupedData_ВидПоказательПол, percentiles, "ВозрУбыв", "Округл", ages)
+    #CustomScale.buildScales(perc_ВидПоказательПол, "Возраст")
     #print(perc_ВидПоказательПол)
-    perc_ВидПоказательПол.saveToFile("perc_ВидПоказательПол.csv",perc_ВидПоказательПол.attrGroup)
+    perc_ВидПоказательПол.saveToFile("res_ВидПоказательПол.csv",perc_ВидПоказательПол.attrGroup+ Tools.listIndexes(percentiles, 1) + percentiles + ["count", "mean", "std", "order", "roundCount", "data", "nums"])
 
     return
 
