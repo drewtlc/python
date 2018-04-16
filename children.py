@@ -42,16 +42,18 @@ class CustomAttribute:
         sportName = "Плавание".upper()
         goodNames = set(map(lambda v: v.upper(), ['циклические','спортивные единоборства','сложно-координационные','игровые','командные игровые','скоростно-силовые']))
         valueAndCount = dict()
-        rowAndValue = dict()
+        rowAndValue = dict() # значение - список из 4 элементов
         for dataPoint in dataPoints:
-            curValue = rowAndValue.get(dataPoint.row, "")
-            additionalCurValue = ""
-            #if curValue != "":
-            #    dataPoint.attributes[self.customAttrName] = curValue
-            #else:
+            curList = rowAndValue.get(dataPoint.row, ["","","",""])
+            curValue = curList[0]
+            curValueAdditional = curList[1]
+            curValueName = curList[2]
+            curValueAdditionalName = curList[3]
             if curValue == "":
                 values = list()
                 additionalValues = list()
+                namesValues = list()
+                additionalNamesValues = list()
                 for attrName in attrNames:
                     value = dataPoint.attributes.get(attrName, "").upper()
                     if value != "":
@@ -63,39 +65,68 @@ class CustomAttribute:
                         if value in goodNames:
                             values += [value]
                             additionalValue = ""
-                            if value == groupName:
-                                for additionalAttrName in attrDict.get(attrName, []):
-                                    if dataPoint.attributes.get(additionalAttrName, "").upper() == sportName:
-                                        additionalValue = sportName
+                            additionalNameValue = ""
+                            # if value == groupName:
+                            #     for additionalAttrName in attrDict.get(attrName, []):
+                            #         if dataPoint.attributes.get(additionalAttrName, "").upper() == sportName:
+                            #             additionalValue = sportName
+                            #             additionalNamesValues += [additionalAttrName]
+                            # else:
+                            for additionalAttrName in attrDict.get(attrName, []):
+                                if additionalValue == "" and dataPoint.attributes.get(additionalAttrName, "").upper() != "":
+                                    additionalValue = dataPoint.attributes.get(additionalAttrName, "").upper()
+                                    additionalNameValue = additionalAttrName
                             additionalValues += [additionalValue]
+                            namesValues += [attrName]
+                            additionalNamesValues += [additionalNameValue]
                 for i in range(len(values)):
                     value = values[i]
                     additionalValue = additionalValues[i]
-                    if curValue == "" or (curValue == groupName and additionalCurValue == sportName):
+                    names = namesValues[i]
+                    additionalNames = additionalNamesValues[i]
+                    #print(values)
+                    #print(additionalNamesValues)
+                    if curValue == "" or (curValue == groupName and curValueAdditional == sportName):
                         curValue = value
-                        additionalCurValue = additionalValue
+                        curValueAdditional = additionalValue
+                        curValueName = names
+                        curValueAdditionalName = additionalNames
                     else:
                         count = valueAndCount.get(value, 0)
                         curCount = valueAndCount.get(curValue, 0)
                         if count < curCount:
                             #curCount = count
                             curValue = value
-                if curValue == groupName and additionalCurValue == sportName:
+                            curValueAdditional = additionalValue
+                            curValueName = names
+                            curValueAdditionalName = additionalNames
+                if curValue == groupName and curValueAdditional == sportName:
                     curValue = ""
-                #dataPoint.attributes[self.customAttrName] = curValue
-                rowAndValue[dataPoint.row] = curValue
+                    curValueAdditional = ""
+                    curValueName = ""
+                    curValueAdditionalName = ""
+                    #dataPoint.attributes[self.customAttrName] = curValue
+                rowAndValue[dataPoint.row] = [curValue,curValueAdditional,curValueName,curValueAdditionalName]
                 if curValue != "":
                     curCount = valueAndCount.get(curValue, 0)
                     valueAndCount[curValue] = (curCount + 1)
         print(valueAndCount)
         #print(reduce(lambda s, v: s+v, valueAndCount.values()))
         #print(rowAndValue)
-        valueAndRow = dict()
-        for key, value in rowAndValue.items():
-            valueAndRow[value] = (valueAndRow.get(value, []) + [key])
+        # valueAndRow = dict()
+        # for key, value in rowAndValue.items():
+        #     valueAndRow[value] = (valueAndRow.get(value, []) + [key])
         #print(valueAndRow)
         for dataPoint in dataPoints:
-            dataPoint.attributes[self.customAttrName] = rowAndValue.get(dataPoint.row, "")
+            curList = rowAndValue.get(dataPoint.row, ["","","",""])
+            curValue = curList[0]
+            curValueAdditional = curList[1]
+            curValueName = curList[2]
+            curValueAdditionalName = curList[3]
+            dataPoint.attributes[self.customAttrName] = curValue
+            dataPoint.attributes["Вид спорта"] = curValueAdditional
+            dataPoint.attributes[self.customAttrName + " (колонка)"] = curValueName
+            dataPoint.attributes["Вид спорта" + " (колонка)"] = curValueAdditionalName
         return
 
 
@@ -165,6 +196,80 @@ class CalcLogic:
                 value.nums = groupedPointsNums.valueDic[key]
             result.valueDic[key] = value
         return result
+
+    def saveToFile(dataPoints, fileName, delim = ";"):
+        dataMatrix = dict()  # Словарь для данных
+        minRow = None
+        minCol = None
+        for dataPoint in dataPoints:
+            dataMatrix[tuple([dataPoint.row, dataPoint.col])] = dataPoint
+            if minRow == None:
+                minRow = dataPoint.row
+            if minCol == None:
+                minCol = dataPoint.col
+            minRow = dataPoint.row if minRow > dataPoint.row else minRow
+            minCol = dataPoint.col if minCol > dataPoint.col else minCol
+        rowsCols = list(dataMatrix.keys())
+        rowsCols.sort()
+        rowsData = dict()
+        attrName1 = "Группа видов спорта"
+        attrName2 = "Вид спорта"
+        attrName3 = attrName1 + " (колонка)"
+        attrName4 = attrName2 + " (колонка)"
+        for rowCol in rowsCols:
+            row = rowCol[0]
+            col = rowCol[1]
+            dp = dataMatrix[rowCol]
+            rowList = rowsData.get(row, [])
+            rowList1 = rowsData.get(-3, [])
+            rowList2 = rowsData.get(-2, [])
+            rowList3 = rowsData.get(-1, [])
+            if col == minCol:
+                attr1 = dp.attributes.get(attrName1, "")
+                attr2 = dp.attributes.get(attrName2, "")
+                attr3 = dp.attributes.get(attrName3, "")
+                attr4 = dp.attributes.get(attrName4, "")
+                rowList += [attr1, attr2, attr3, attr4]
+                keysSet = set(dp.attributes.keys())
+                keysSet -= {attrName1, attrName2, attrName3, attrName4, "ВозрУбыв", "Округл", "Показатель"}
+                keys = list(keysSet)
+                keys.sort()
+                for key in keys:
+                    rowList += [dp.attributes.get(key)]
+            if row == minRow:
+                if col == minCol:
+                    rowList1 = ["","","",""]
+                    rowList2 = ["","","",""]
+                    rowList3 = [attrName1, attrName2, attrName3, attrName4]
+                    keysSet = set(dp.attributes.keys())
+                    keysSet -= {attrName1, attrName2, attrName3, attrName4, "ВозрУбыв", "Округл", "Показатель"}
+                    keys = list(keysSet)
+                    keys.sort()
+                    for key in keys:
+                        rowList1 += [""]
+                        rowList2 += [""]
+                        rowList3 += [key]
+                rowList1 += [dp.attributes.get("ВозрУбыв")]
+                rowList2 += [dp.attributes.get("Округл")]
+                rowList3 += [dp.attributes.get("Показатель")]
+                rowsData[-3] = rowList1
+                rowsData[-2] = rowList2
+                rowsData[-1] = rowList3
+            val = Tools.string(dp.value) if dp.isFloat else dp.value
+            rowList.append(val)
+            rowsData[row] = rowList
+        with open(fileName, "w") as file:
+            rows = list(rowsData.keys())
+            rows.sort()
+            for row in rows:
+                rowList = rowsData[row]
+                for i in range(len(rowList)):
+                    rowList[i] = str(rowList[i]).replace("\n"," ")
+                    if rowList[i]=="":
+                        rowList[i] = "\"\""
+                strForFile = reduce(lambda s,v: str(s)+delim+str(v), rowList)
+                file.write(strForFile+"\n")
+        return
 
 class CustomScale:
     def __init__(self, order = 1, roundCount = -1):
@@ -328,9 +433,10 @@ def main():
     attrGroup = CustomAttribute("Группа видов спорта")
     attrGroup.splitInGroups(dataPoints)
 
+    CalcLogic.saveToFile(dataPoints, "БАЗА 2018 на 20.03.2018_v03.2 (1).csv")
+
     percentiles = [5, 10, 25, 40, 50, 60, 75, 90, 95]
     ages = {6, 7, 8, 9, 10, 11, 12}
-
 
     # Группируем по атрибутам "Показатель", "Пол", "Возраст"
     groupedData_ПоказательПолВозраст = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Возраст"])
