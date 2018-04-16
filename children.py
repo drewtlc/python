@@ -201,7 +201,10 @@ class CalcLogic:
         dataMatrix = dict()  # Словарь для данных
         minRow = None
         minCol = None
+        attributesOrder = list()
         for dataPoint in dataPoints:
+            if len(attributesOrder)==0:
+                attributesOrder = list(dataPoint.attributes.keys())
             dataMatrix[tuple([dataPoint.row, dataPoint.col])] = dataPoint
             if minRow == None:
                 minRow = dataPoint.row
@@ -230,22 +233,20 @@ class CalcLogic:
                 attr3 = dp.attributes.get(attrName3, "")
                 attr4 = dp.attributes.get(attrName4, "")
                 rowList += [attr1, attr2, attr3, attr4]
-                keysSet = set(dp.attributes.keys())
-                keysSet -= {attrName1, attrName2, attrName3, attrName4, "ВозрУбыв", "Округл", "Показатель"}
-                keys = list(keysSet)
-                keys.sort()
-                for key in keys:
+                keysList = attributesOrder.copy()
+                for key in [attrName1, attrName2, attrName3, attrName4, "ВозрУбыв", "Округл", "Показатель"]:
+                    keysList.remove(key)
+                for key in keysList:
                     rowList += [dp.attributes.get(key)]
             if row == minRow:
                 if col == minCol:
                     rowList1 = ["","","",""]
                     rowList2 = ["","","",""]
                     rowList3 = [attrName1, attrName2, attrName3, attrName4]
-                    keysSet = set(dp.attributes.keys())
-                    keysSet -= {attrName1, attrName2, attrName3, attrName4, "ВозрУбыв", "Округл", "Показатель"}
-                    keys = list(keysSet)
-                    keys.sort()
-                    for key in keys:
+                    keysList = attributesOrder.copy()
+                    for key in [attrName1, attrName2, attrName3, attrName4, "ВозрУбыв", "Округл", "Показатель"]:
+                        keysList.remove(key)
+                    for key in keysList:
                         rowList1 += [""]
                         rowList2 += [""]
                         rowList3 += [key]
@@ -418,13 +419,13 @@ def main1():
 
 def main():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(1, 2810, 1, 138, 4, None, 57, None)
-    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.2 (1).xlsx', '', 'База 20.03.18', rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(1, 2809, 1, 139, 4, None, 57, None)
+    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.3.xlsx', '', 'База 20.03.18', rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     upDown = lambda value: -1 if value=="↓" else 1
     roundCount = lambda value: 2 if value == "0,11" or value == 0.11 else (1 if value == "0,1" or value == 0.1 else (0 if value == "целое" else -1))
-    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : 'ВозрУбыв', 2 : 'Округл', 3 : 'Показатель'}, {1 : upDown, 2 : roundCount}, False)
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, ["Дата тестирования", "Дата рождения"], {1 : 'ВозрУбыв', 2 : 'Округл', 3 : 'Показатель'}, {1 : upDown, 2 : roundCount}, False)
     print("Обработано точек данных: "+str(len(dataPoints)))
     #attrAge = CustomAttribute("Возраст (год)", [], "", lambda dp: roundCount(dp.attributes.get("Возраст",'')) if dp.isFloat else 0)
     #attrAge.addCustomAttribute(dataPoints)
@@ -433,7 +434,7 @@ def main():
     attrGroup = CustomAttribute("Группа видов спорта")
     attrGroup.splitInGroups(dataPoints)
 
-    CalcLogic.saveToFile(dataPoints, "БАЗА 2018 на 20.03.2018_v03.2 (1).csv")
+    CalcLogic.saveToFile(dataPoints, "БАЗА 2018 на 20.03.2018_v03.3.csv")
 
     percentiles = [5, 10, 25, 40, 50, 60, 75, 90, 95]
     ages = {6, 7, 8, 9, 10, 11, 12}

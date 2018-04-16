@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import datetime
 
 import xlrd
 import functools
@@ -143,10 +144,11 @@ class DataPoint:
     def toStrWithAttr(point):
         return "{" + point.toStr() + ";" + str(point.attributes) + "}"
 
-    def makeDataPoints(excelData, rowsColsSettings,
+    def makeDataPoints(excelData, rowsColsSettings, dateCols,
                        colAttrNames={1: 'Тип исследования', 2: 'Группа показателей', 3: 'Возрасты теста',
                                      4: 'Показатель'}, colAttrLambdas={}, fillAttrBlanks = True):
         result = []
+        dateColsSet = set(map(lambda s: str(s).upper(), dateCols))
         dataRows = range(rowsColsSettings.rowDataFrom, rowsColsSettings.rowDataTo)
         dataCols = range(rowsColsSettings.colDataFrom, rowsColsSettings.colDataTo)
         dataPointDic = {}  # Словарь для точек данных
@@ -164,7 +166,7 @@ class DataPoint:
             allColsSet.add(tablePoint.col)
         # Строим словари атрибутов. Сначала надо определить строку с заголовкаси колонок
         captionRow = dataRowsList[0] - 1  # Строка с заголовками
-        # Проверим, что такой номер строки есть во множестве всех номеров. ЕСли нет, то будем искать строку выше
+        # Проверим, что такой номер строки есть во множестве всех номеров. Если нет, то будем искать строку выше
         while not (captionRow in allRowsSet) and (captionRow > 0):
             captionRow = captionRow - 1
         if captionRow == 0:
@@ -177,6 +179,13 @@ class DataPoint:
             rowDic = rowAttrDic.get(rowCol[0], dict())
             caption = excelDataMatrix[tuple([captionRow, rowCol[1]])]
             value = excelDataMatrix[rowCol]
+            if (caption.upper() in dateColsSet) and (value != ""):
+                tempDate = datetime.datetime(1900, 1, 1)
+                deltaDays = datetime.timedelta(days=int(value))
+                #secs = (int((value % 1) * 86400) - 60)
+                #deltaSeconds = datetime.timedelta(seconds=secs)
+                #TheTime = (tempDate + deltaDays + deltaSeconds)
+                value = (tempDate + deltaDays) # + deltaSeconds
             dics = list(filter((lambda x: x.field == caption),
                                excelData.dictionaries))  # Ищем значение заголовка с списке словарей Excel
             if len(dics) > 0:
