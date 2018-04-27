@@ -11,6 +11,7 @@ from functools import reduce
 from itertools import repeat
 from scipy import interpolate
 import numpy
+import scipy.optimize
 import warnings
 from base_module import Tools, RowsColsSettings, DataPoint, ExcelData, GroupedDataPoints, GroupedPoints
 
@@ -281,6 +282,40 @@ class CustomScale:
         self.result = dict()
         return
 
+    def exp(t, a, b):
+        return a * numpy.exp(b * t)
+
+    def bestFit(self, ages, x, y):
+        xBegin = ages[0]
+        xEnd = ages[len(ages) - 1]
+        #  p - апроксимационный полином некоторой степени. В текущей версии 1 степени. Коэфициенты полинома дает функция polyfit
+        p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y), 1))
+        # with warnings.catch_warnings():
+        #     warnings.filterwarnings('error')
+        #     try:
+        #         p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y[i]), 1))
+        #     except numpy.RankWarning:
+        #         stop = True
+        yBegin, yEnd = p(xBegin), p(xEnd)
+        pair = None
+        if self.order == 1 and yBegin <= yEnd:
+            pair = [yBegin, yEnd]
+        if self.order == 1 and yBegin > yEnd:
+            pair = [yEnd, yBegin]
+        if self.order == -1 and yBegin >= yEnd:
+            pair = [yBegin, yEnd]
+        if self.order == -1 and yBegin < yEnd:
+            pair = [yEnd, yBegin]
+        funcP = interpolate.interp1d([xBegin, xEnd], pair)
+        errP = 0
+        for i in Tools.listIndexes(x):
+            errP += (funcP(x[i]) - y[i]) ^ 2
+        # Теперь строим экспоненту
+        [a, b], pcov = scipy.optimize.curve_fit(CustomScale.exp, x, y)
+        yBegin, yEnd = CustomScale.exp(xBegin, a, b), CustomScale.exp(xEnd, a, b)
+
+
+
     def calc(self):
         #print(self.data.values())
         if len(self.data) != 0:
@@ -301,27 +336,7 @@ class CustomScale:
                         y[i].append(self.data.get(age)[i])
             f = list()
             for i in range(cols):
-                p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y[i]), 1))
-                # with warnings.catch_warnings():
-                #     warnings.filterwarnings('error')
-                #     try:
-                #         p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y[i]), 1))
-                #     except numpy.RankWarning:
-                #         stop = True
-                x1 = ages[0]
-                x2 = ages[len(ages)-1]
-                y1 = p(x1)
-                y2 = p(x2)
-                pair = None
-                if self.order == 1 and y1 <= y2:
-                    pair = [y1, y2]
-                if self.order == 1 and y1 > y2:
-                    pair = [y2, y1]
-                if self.order == -1 and y1 >= y2:
-                    pair = [y1, y2]
-                if self.order == -1 and y1 < y2:
-                    pair = [y2, y1]
-                f.append(interpolate.interp1d([x1, x2], pair))
+                 f.append(self.bestFit(ages, x, y[i]))
             for age in ages:
                 vals = list()
                 for i in range(cols):
@@ -419,8 +434,11 @@ def main1():
 
 def main():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(1, 2809, 1, 139, 4, None, 57, None)
-    allData = ExcelData.readDataFile('БАЗА 2018 на 20.03.2018_v03.3.xlsx', '', 'База 20.03.18', rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(строкаНачало=1, строкаКонец=2809, столбецНачало=1, столбецКонец=139,
+                                        строкаДанныхНачало=4, строкаДанныхКонец=None, столбецДанныхНачало=57,
+                                        столбецДанныхКонец=None)
+    allData = ExcelData.readDataFile(fileName='БАЗА 2018 на 20.03.2018_v03.4.xlsx', dicSheetName='',
+                                     dataSheetName='База 20.03.18', rowsColsSettings=rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     upDown = lambda value: -1 if value=="↓" else 1
@@ -434,7 +452,7 @@ def main():
     attrGroup = CustomAttribute("Группа видов спорта")
     attrGroup.splitInGroups(dataPoints)
 
-    CalcLogic.saveToFile(dataPoints, "БАЗА 2018 на 20.03.2018_v03.3.csv")
+    CalcLogic.saveToFile(dataPoints, "БАЗА 2018 на 20.03.2018_v03.4.csv")
 
     percentiles = [5, 10, 25, 40, 50, 60, 75, 90, 95]
     ages = {6, 7, 8, 9, 10, 11, 12}
