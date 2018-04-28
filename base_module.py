@@ -20,6 +20,12 @@ class Tools:
     def listIndexes(listVal, add=0):
         return list(range(add, len(listVal) + add))
 
+    def first(l):
+        return l[0]
+
+    def last(l):
+        return l[len(l) - 1]
+
 class RowsColsSettings:
     def __init__(self, строкаНачало, строкаКонец, столбецНачало, столбецКонец, строкаДанныхНачало =- 1, строкаДанныхКонец =- 1, столбецДанныхНачало =- 1, столбецДанныхКонец =- 1):
         self.rowFrom = строкаНачало

@@ -282,39 +282,95 @@ class CustomScale:
         self.result = dict()
         return
 
-    def exp(t, a, b):
-        return a * numpy.exp(b * t)
+    def exp(t, a, b, c, d):
+        return a * numpy.exp(b * t + c) + d
+
+    def exp1(t, a, b, c):
+        return a * numpy.exp(t + b) + c
+
+    def exp2(t, a, b, c):
+        return a * numpy.exp(-t + b) + c
+
+    def log(t, a, b, c, d):
+        return a * numpy.log(b * t + c) + d
 
     def bestFit(self, ages, x, y):
+        xReversed = list(reversed(x))
         xBegin = ages[0]
         xEnd = ages[len(ages) - 1]
         #  p - апроксимационный полином некоторой степени. В текущей версии 1 степени. Коэфициенты полинома дает функция polyfit
-        p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y), 1))
-        # with warnings.catch_warnings():
-        #     warnings.filterwarnings('error')
-        #     try:
-        #         p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y[i]), 1))
-        #     except numpy.RankWarning:
-        #         stop = True
-        yBegin, yEnd = p(xBegin), p(xEnd)
-        pair = None
-        if self.order == 1 and yBegin <= yEnd:
-            pair = [yBegin, yEnd]
-        if self.order == 1 and yBegin > yEnd:
-            pair = [yEnd, yBegin]
-        if self.order == -1 and yBegin >= yEnd:
-            pair = [yBegin, yEnd]
-        if self.order == -1 and yBegin < yEnd:
-            pair = [yEnd, yBegin]
-        funcP = interpolate.interp1d([xBegin, xEnd], pair)
-        errP = 0
-        for i in Tools.listIndexes(x):
-            errP += (funcP(x[i]) - y[i]) ^ 2
-        # Теперь строим экспоненту
-        [a, b], pcov = scipy.optimize.curve_fit(CustomScale.exp, x, y)
-        yBegin, yEnd = CustomScale.exp(xBegin, a, b), CustomScale.exp(xEnd, a, b)
-
-
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error')
+            try:
+                p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y), 1))
+                yBegin, yEnd = p(xBegin), p(xEnd)
+                order = 1 if yBegin <= yEnd else -1
+                pair = [yBegin, yEnd] if order == self.order else [yEnd, yBegin]
+                funcP = interpolate.interp1d([xBegin, xEnd], pair)
+                if order != self.order:
+                    return funcP
+                p = numpy.poly1d(numpy.polyfit(numpy.array(x), numpy.array(y), 2))
+                return p
+            except numpy.RankWarning:
+                return lambda x: Tools.last(y)
+        # errP = 0
+        # for i in Tools.listIndexes(x):
+        #     errP += (funcP(x[i]) - y[i]) ** 2
+        # # Теперь строим экспоненту
+        # xPrint, yPrint = list(), list()
+        # for i in Tools.listIndexes(x):
+        #     xi, yi = x[i], y[i]
+        #     if not xi in set(xPrint):
+        #         xPrint.append(xi)
+        #         yPrint.append(yi)
+        # if self.order == 1:
+        #     [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.exp, x, y, p0=[1, self.order, -Tools.last(x), Tools.last(y) - 1])
+        #     yBegin, yEnd = CustomScale.exp(xBegin, a, b, c, d), CustomScale.exp(xEnd, a, b, c, d)
+        # else:
+        #     [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.exp, x, y, p0=[1, self.order, -Tools.first(x), Tools.first(y) - 1])
+        #     yBegin, yEnd = CustomScale.exp(xBegin, a, b, c, d), CustomScale.exp(xEnd, a, b, c, d)
+        # # order = 1 if yBegin <= yEnd else -1
+        # # if order != self.order:
+        # #     if self.order == 1:
+        # #         [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.exp, xReversed, y,
+        # #                                                       p0=[1, self.order, -Tools.last(xReversed), Tools.last(y) - 1])
+        # #         yBegin, yEnd = CustomScale.exp(xBegin, a, b, c, d), CustomScale.exp(xEnd, a, b, c, d)
+        # #     else:
+        # #         [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.exp, xReversed, y,
+        # #                                                       p0=[1, self.order, -Tools.first(xReversed), Tools.first(y) - 1])
+        # #         yBegin, yEnd = CustomScale.exp(xBegin, a, b, c, d), CustomScale.exp(xEnd, a, b, c, d)
+        # errExp = 0
+        # for i in Tools.listIndexes(x):
+        #     errExp += (CustomScale.exp(x[i], a, b, c, d) - y[i]) ** 2
+        # # Теперь строим логарифм
+        # if self.order == 1:
+        #     [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.log, x, y, p0=[1, self.order, -Tools.first(x) - 1, Tools.first(y)])
+        #     yBegin, yEnd = CustomScale.log(xBegin, a, b, c, d), CustomScale.log(xEnd, a, b, c, d)
+        # else:
+        #     [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.log, x, y, p0=[1, self.order, -Tools.last(x) - 1, Tools.last(y)])
+        #     yBegin, yEnd = CustomScale.log(xBegin, a, b, c, d), CustomScale.log(xEnd, a, b, c, d)
+        # # [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.log, x, y, p0=[1, self.order, -x[0]-1, y[0]])
+        # # yBegin, yEnd = CustomScale.log(xBegin, a, b, c, d), CustomScale.log(xEnd, a, b, c, d)
+        # # order = 1 if yBegin <= yEnd else -1
+        # # if order != self.order:
+        # #     [a, b, c, d], pcov = scipy.optimize.curve_fit(CustomScale.log, xReversed, y, p0=[1, self.order, -x[0]-1, y[0]])
+        # #     yBegin, yEnd = CustomScale.log(xBegin, a, b, c, d), CustomScale.log(xEnd, a, b, c, d)
+        # errLog = 0
+        # for i in Tools.listIndexes(x):
+        #     errLog += (CustomScale.log(x[i], a, b, c, d) - y[i]) ** 2
+        # if errP < errExp:
+        #     if errP < errLog:
+        #         return funcP
+        #     else:
+        #         if errExp < errLog:
+        #             return lambda x: a * numpy.exp(b * x + c) + d
+        #         else:
+        #             return lambda x: a * numpy.log(b * x + c) + d
+        # else:
+        #     if errExp < errLog:
+        #         return lambda x: a * numpy.exp(b * x + c) + d
+        #     else:
+        #         return lambda x: a * numpy.log(b * x + c) + d
 
     def calc(self):
         #print(self.data.values())
@@ -343,7 +399,15 @@ class CustomScale:
                     val = float(f[i](age))
                     if self.roundCount != -1:
                         val = round(val, self.roundCount)
-                    vals.append(val)
+                    if len(vals) == 0:
+                        vals.append(val)
+                    else:
+                        lastVal = Tools.last(vals)
+                        order = 1 if lastVal <= val else -1
+                        if order == self.order:
+                            vals.append(val)
+                        else:
+                            vals.append(lastVal)
                 self.result[age] = vals
         # for i in range(len(list(self.data.values())[0])):
         #     x = list()
