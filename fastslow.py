@@ -134,7 +134,7 @@ class CalcResult:
         orderedKeys = sorted(keys, key = functools.partial(sortLambda, dic=sortDict))
         return orderedKeys
 
-    def write(calcResults, file = "APResults.csv", sortDict = dict()):
+    def write(calcResults, file = "res_fastslow.csv", sortDict = dict()):
         # keys = list(calcResults.keys())
         # print(keys)
         # sortLambda = lambda obj, dic : obj if dic.get(obj,"")=="" else dic.get(obj)
@@ -193,8 +193,8 @@ class CalcResult:
         matplotlib.pyplot.show() if (file=="") else matplotlib.pyplot.savefig(file)
         return
 
-# Основная программа (А.П.)
-def main():
+# Основная программа (быстрые/медленные корты для мужчин/женщин)
+def mainFastSlow():
     # Читаем из файла
     rowsColsSettings = RowsColsSettings(1, 61, 1, 30, 2, None, 7, None)
     allData = ExcelData.readDataFile("Таблица (все данные) v06.xlsx", '', "Данные", rowsColsSettings)
@@ -213,11 +213,65 @@ def main():
     print(groupedData)
     res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
     # Запись в файл с разделителями
-    CalcResult.write(res,"APResults.csv", orderDict)
+    CalcResult.write(res,"res_fastslow.csv", orderDict)
     # Вывод диаграмм
-    CalcResult.diagrams(res, "APResults_diagrams.png", orderDict)
+    CalcResult.diagrams(res, "res_fastslow_diagrams.png", orderDict)
     # Вывод ящиков с усами
-    CalcResult.boxplots(res, "APResults_boxplots.png", orderDict)
+    CalcResult.boxplots(res, "res_fastslow_boxplots.png", orderDict)
+    return
+
+# Основная программа (временные отрезки)
+def mainTime():
+    # Читаем из файла
+    rowsColsSettings = RowsColsSettings(3, 54, 1, 21, 4, None, 3, None)
+    allData = ExcelData.readDataFile("Временные отрезки (все данные) v02.xlsx", '', "Данные", rowsColsSettings)
+    print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
+    # Переводим ячейки в точки с атрибутами
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {3 : "Показатель"})
+    print("Обработано точек данных: "+str(len(dataPoints)))
+    # Группируем по атрибутам "Пол"
+    groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол"])
+    orderDict = groupedData.buildColDict("Показатель")
+    #groupedData = GroupedDataPoints.groupByList(dataPoints, ["Тип покрытия", "Показатель"])
+    #groupedData.debug()
+    #print(groupedData)
+    #normTestResult = GroupedPoints.shapiro(groupedData)
+    #groupedValues = GroupedPoints.dataPointsValues(groupedData)
+    print(groupedData)
+    res = CalcResult.calc(groupedData, ["Мужчины"], ["Женщины"])
+    # Запись в файл с разделителями
+    CalcResult.write(res,"res_time.csv", orderDict)
+    # Вывод диаграмм
+    CalcResult.diagrams(res, "res_time_diagrams.png", orderDict)
+    # Вывод ящиков с усами
+    CalcResult.boxplots(res, "res_time_boxplots.png", orderDict)
+    return
+
+# Основная программа (временные отрезки)
+def mainActions():
+    # Читаем из файла
+    rowsColsSettings = RowsColsSettings(2, 119, 1, 14, 3, None, 4, None)
+    allData = ExcelData.readDataFile("Разносторонность действий (все данные) v03.xlsx", '', "Данные", rowsColsSettings)
+    print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
+    # Переводим ячейки в точки с атрибутами
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {2 : "Показатель"})
+    print("Обработано точек данных: "+str(len(dataPoints)))
+    # Группируем по атрибутам "Пол"
+    groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол"])
+    orderDict = groupedData.buildColDict("Показатель")
+    #groupedData = GroupedDataPoints.groupByList(dataPoints, ["Тип покрытия", "Показатель"])
+    #groupedData.debug()
+    #print(groupedData)
+    #normTestResult = GroupedPoints.shapiro(groupedData)
+    #groupedValues = GroupedPoints.dataPointsValues(groupedData)
+    print(groupedData)
+    res = CalcResult.calc(groupedData, ["Мужчины"], ["Женщины"])
+    # Запись в файл с разделителями
+    CalcResult.write(res,"res_actions.csv", orderDict)
+    # Вывод диаграмм
+    CalcResult.diagrams(res, "res_actions_diagrams.png", orderDict)
+    # Вывод ящиков с усами
+    CalcResult.boxplots(res, "res_actions_boxplots.png", orderDict)
     return
 
 # def rang():
@@ -239,13 +293,15 @@ def main():
 #     print(groupedData)
 #     res = CalcResult.calc(groupedData, ["Мужчины"], ["Женщины"])
 #     # Запись в файл с разделителями
-#     CalcResult.write(res,"APResults.csv")
+#     CalcResult.write(res,"fastslow.csv")
 #     # Вывод диаграмм
-#     CalcResult.diagrams(res, "APResults_diagrams.png")
+#     CalcResult.diagrams(res, "fastslow_diagrams.png")
 #     # Вывод ящиков с усами
-#     CalcResult.boxplots(res, "APResults_boxplots.png")
+#     CalcResult.boxplots(res, "fastslow_boxplots.png")
 #     return
 
-main()
+#mainFastSlow()
+mainTime()
+mainActions()
 #rang()
 
