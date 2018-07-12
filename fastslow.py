@@ -197,10 +197,10 @@ class CalcResult:
 def mainFastSlow():
     # Читаем из файла
     rowsColsSettings = RowsColsSettings(1, 61, 1, 30, 2, None, 7, None)
-    allData = ExcelData.readDataFile("Таблица (все данные) v06.xlsx", '', "Данные", rowsColsSettings)
+    allData = ExcelData.readDataFile("Таблица (все данные) v07.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {1 : "Показатель"})
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {1 : "Показатель"})
     print("Обработано точек данных: "+str(len(dataPoints)))
     # Группируем по атрибутам "Пол", "Тип покрытия"
     groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Тип покрытия"])
@@ -223,11 +223,11 @@ def mainFastSlow():
 # Основная программа (временные отрезки)
 def mainTime():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(3, 54, 1, 21, 4, None, 3, None)
-    allData = ExcelData.readDataFile("Временные отрезки (все данные) v02.xlsx", '', "Данные", rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(3, 54, 1, 25, 4, None, 3, None)
+    allData = ExcelData.readDataFile("Временные отрезки (все данные) v04.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {3 : "Показатель"})
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {3 : "Показатель"})
     print("Обработано точек данных: "+str(len(dataPoints)))
     # Группируем по атрибутам "Пол"
     groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол"])
@@ -254,7 +254,7 @@ def mainActions():
     allData = ExcelData.readDataFile("Разносторонность действий (все данные) v03.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {2 : "Показатель"})
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {2 : "Показатель"})
     print("Обработано точек данных: "+str(len(dataPoints)))
     # Группируем по атрибутам "Пол"
     groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол"])
@@ -302,6 +302,6 @@ def mainActions():
 
 #mainFastSlow()
 mainTime()
-mainActions()
+#mainActions()
 #rang()
 
