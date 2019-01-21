@@ -149,7 +149,7 @@ class CalcResult:
                 #print(key)
                 file.write(str(key)+";"+calcResult.rowStr()+"\n")
         return
-    def diagrams(calcResults, file = "", sortDict = dict()):
+    def diagrams(calcResults, file = "", sortDict = dict(), legendList = ["1","2"]):
         colorM = "blue"
         colorW = "red"
         alpha = 0.5
@@ -170,11 +170,11 @@ class CalcResult:
             ax.plot(calcResult.describeW.mean, 10, "ro")
             ax.plot(calcResult.percentilesM[len(calcResult.percentilesM)//2], 10, "b^")
             ax.plot(calcResult.percentilesW[len(calcResult.percentilesW)//2], 10, "r^")
-            ax.legend(["Среденее для мужчин", "Среденее для женщин", "Медиана для мужчин", "Медиана для женщин", "Распределение для мужчин", "Распределение для женщин"])
+            ax.legend(["Среденее для "+legendList[0], "Среденее для "+legendList[1], "Медиана для "+legendList[0], "Медиана для "+legendList[1], "Распределение для "+legendList[0], "Распределение для "+legendList[1]])
             ax.set_title(key)
         matplotlib.pyplot.show() if (file=="") else matplotlib.pyplot.savefig(file)
         return
-    def boxplots(calcResults, file = "", sortDict = dict()):
+    def boxplots(calcResults, file = "", sortDict = dict(), legendList = ["1","2"]):
         figWidth = 8
         figHeight = 8
         # keys = list(calcResults.keys())
@@ -188,7 +188,7 @@ class CalcResult:
             data.append(calcResult.numbersM)
             data.append(calcResult.numbersW)
             ax = fig.add_subplot(len(keys), 1, index + 1)
-            ax.boxplot(data, labels=["Мужчины", "Женщины"])
+            ax.boxplot(data, labels=legendList)
             ax.set_title(key)
         matplotlib.pyplot.show() if (file=="") else matplotlib.pyplot.savefig(file)
         return
@@ -196,11 +196,11 @@ class CalcResult:
 # Основная программа (быстрые/медленные корты для мужчин/женщин)
 def mainFastSlow():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(1, 61, 1, 30, 2, None, 7, None)
-    allData = ExcelData.readDataFile("Таблица (все данные) v07.xlsx", '', "Данные", rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(строкаНачало=1, строкаКонец=100, столбецНачало=1, столбецКонец=30, строкаДанныхНачало=2, строкаДанныхКонец=None, столбецДанныхНачало=7, столбецДанныхКонец=None)
+    allData = ExcelData.readDataFile("Таблица (все данные) М-Ж, Б-М v01.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {1 : "Показатель"})
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {1 : "Показатель"}) # 1 - номер строки с названиями показателей
     print("Обработано точек данных: "+str(len(dataPoints)))
     # Группируем по атрибутам "Пол", "Тип покрытия"
     groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Тип покрытия"])
@@ -211,26 +211,39 @@ def mainFastSlow():
     #normTestResult = GroupedPoints.shapiro(groupedData)
     #groupedValues = GroupedPoints.dataPointsValues(groupedData)
     print(groupedData)
+    legendList = ["Мужчины,Быстрое","Женщины,Быстрое"]
     res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
-    # Запись в файл с разделителями
-    CalcResult.write(res,"res_fastslow.csv", orderDict)
-    # Вывод диаграмм
-    CalcResult.diagrams(res, "res_fastslow_diagrams.png", orderDict)
-    # Вывод ящиков с усами
-    CalcResult.boxplots(res, "res_fastslow_boxplots.png", orderDict)
+    CalcResult.write(res,"res_fastslow_1_MW_F.csv", orderDict)                          # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_fastslow_diagrams_1_MW_F.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_fastslow_boxplots_1_MW_F.png", orderDict, legendList) # Вывод ящиков с усами
+    legendList = ["Мужчины,Медленное","Женщины,Медленное"]
+    res = CalcResult.calc(groupedData, ["Мужчины", "Медленное"], ["Женщины", "Медленное"])
+    CalcResult.write(res,"res_fastslow_2_MW_S.csv", orderDict)                          # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_fastslow_diagrams_2_MW_S.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_fastslow_boxplots_2_MW_S.png", orderDict, legendList) # Вывод ящиков с усами
+    legendList = ["Мужчины,Быстрое","Мужчины,Медленное"]
+    res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Мужчины", "Медленное"])
+    CalcResult.write(res,"res_fastslow_3_M_FS.csv", orderDict)                          # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_fastslow_diagrams_3_M_FS.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_fastslow_boxplots_3_M_FS.png", orderDict, legendList) # Вывод ящиков с усами
+    legendList = ["Женщины,Быстрое","Женщины,Медленное"]
+    res = CalcResult.calc(groupedData, ["Женщины", "Быстрое"], ["Женщины", "Медленное"])
+    CalcResult.write(res,"res_fastslow_4_W_FS.csv", orderDict)                          # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_fastslow_diagrams_4_W_FS.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_fastslow_boxplots_4_W_FS.png", orderDict, legendList) # Вывод ящиков с усами
     return
 
 # Основная программа (временные отрезки)
 def mainTime():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(3, 28, 1, 25, 4, None, 3, None)
-    allData = ExcelData.readDataFile("Временные отрезки (все данные) v06.xlsx", '', "Данные (выборка)", rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(строкаНачало=4, строкаКонец=76, столбецНачало=1, столбецКонец=24, строкаДанныхНачало=5, строкаДанныхКонец=None, столбецДанныхНачало=4, столбецДанныхКонец=None)
+    allData = ExcelData.readDataFile("Временные отрезки (все данные) М-Ж, Б-М v01.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
-    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {3 : "Показатель"})
+    dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {4 : "Показатель"}) # 4 - номер строки с названиями показателей
     print("Обработано точек данных: "+str(len(dataPoints)))
-    # Группируем по атрибутам "Пол"
-    groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол"])
+    # Группируем по атрибутам "Пол", "Тип покрытия"
+    groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол", "Тип покрытия"])
     orderDict = groupedData.buildColDict("Показатель")
     #groupedData = GroupedDataPoints.groupByList(dataPoints, ["Тип покрытия", "Показатель"])
     #groupedData.debug()
@@ -238,16 +251,29 @@ def mainTime():
     #normTestResult = GroupedPoints.shapiro(groupedData)
     #groupedValues = GroupedPoints.dataPointsValues(groupedData)
     print(groupedData)
-    res = CalcResult.calc(groupedData, ["Мужчины"], ["Женщины"])
-    # Запись в файл с разделителями
-    CalcResult.write(res,"res_time.csv", orderDict)
-    # Вывод диаграмм
-    CalcResult.diagrams(res, "res_time_diagrams.png", orderDict)
-    # Вывод ящиков с усами
-    CalcResult.boxplots(res, "res_time_boxplots.png", orderDict)
+    legendList = ["Мужчины,Быстрое","Женщины,Быстрое"]
+    res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Женщины", "Быстрое"])
+    CalcResult.write(res,"res_time_1_MW_F.csv", orderDict)                          # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_time_diagrams_1_MW_F.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_time_boxplots_1_MW_F.png", orderDict, legendList) # Вывод ящиков с усами
+    legendList = ["Мужчины,Медленное","Женщины,Медленное"]
+    res = CalcResult.calc(groupedData, ["Мужчины", "Медленное"], ["Женщины", "Медленное"])
+    CalcResult.write(res,"res_time_2_MW_S.csv", orderDict)                          # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_time_diagrams_2_MW_S.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_time_boxplots_2_MW_S.png", orderDict, legendList) # Вывод ящиков с усами
+    legendList = ["Мужчины,Быстрое","Мужчины,Медленное"]
+    res = CalcResult.calc(groupedData, ["Мужчины", "Быстрое"], ["Мужчины", "Медленное"])
+    CalcResult.write(res,"res_time_3_M_FS.csv", orderDict)                          # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_time_diagrams_3_M_FS.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_time_boxplots_3_M_FS.png", orderDict, legendList) # Вывод ящиков с усами
+    legendList = ["Женщины,Быстрое","Женщины,Медленное"]
+    res = CalcResult.calc(groupedData, ["Женщины", "Быстрое"], ["Женщины", "Медленное"])
+    CalcResult.write(res,"res_time_4_W_FS.csv", orderDict) # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_time_diagrams_4_W_FS.png", orderDict, legendList) # Вывод диаграмм
+    CalcResult.boxplots(res, "res_time_boxplots_4_W_FS.png", orderDict, legendList) # Вывод ящиков с усами
     return
 
-# Основная программа (временные отрезки)
+# Основная программа (разносторонность действий)
 def mainActions():
     # Читаем из файла
     rowsColsSettings = RowsColsSettings(2, 48, 1, 14, 3, None, 4, None)
@@ -300,8 +326,8 @@ def mainActions():
 #     CalcResult.boxplots(res, "fastslow_boxplots.png")
 #     return
 
-#mainFastSlow()
+mainFastSlow()
 mainTime()
-mainActions()
+#mainActions()
 #rang()
 
