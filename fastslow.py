@@ -223,8 +223,8 @@ def mainFastSlow():
 # Основная программа (временные отрезки)
 def mainTime():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(3, 54, 1, 25, 4, None, 3, None)
-    allData = ExcelData.readDataFile("Временные отрезки (все данные) v04.xlsx", '', "Данные", rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(3, 28, 1, 25, 4, None, 3, None)
+    allData = ExcelData.readDataFile("Временные отрезки (все данные) v06.xlsx", '', "Данные (выборка)", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {3 : "Показатель"})
@@ -250,8 +250,8 @@ def mainTime():
 # Основная программа (временные отрезки)
 def mainActions():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(2, 119, 1, 14, 3, None, 4, None)
-    allData = ExcelData.readDataFile("Разносторонность действий (все данные) v03.xlsx", '', "Данные", rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(2, 48, 1, 14, 3, None, 4, None)
+    allData = ExcelData.readDataFile("Разносторонность действий (все данные) v07.xlsx", '', "Данные (выборка)", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {2 : "Показатель"})
@@ -302,6 +302,6 @@ def mainActions():
 
 #mainFastSlow()
 mainTime()
-#mainActions()
+mainActions()
 #rang()
 
