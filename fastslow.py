@@ -56,9 +56,9 @@ class CalcResult:
         result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
         value = list(self.shapiroW).pop()
         result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.normaltestM).pop()
+        value = 0 if len(self.normaltestM)==0 else list(self.normaltestM).pop()
         result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
-        value = list(self.normaltestW).pop()
+        value = 0 if len(self.normaltestW)==0 else list(self.normaltestW).pop()
         result += [Tools.string(value)] + ["Норм." if value>level else "Не норм."]
         value = list(self.ttest).pop()
         result += [Tools.string(value)] + ["Сред.один." if value>level else "Сред.отлич."]
@@ -109,8 +109,8 @@ class CalcResult:
             tests.kstestW = scipy.stats.kstest(numbersW, "norm")
             tests.shapiroM = scipy.stats.shapiro(numbersM)
             tests.shapiroW = scipy.stats.shapiro(numbersW)
-            tests.normaltestM = scipy.stats.normaltest(numbersM)
-            tests.normaltestW = scipy.stats.normaltest(numbersW)
+            tests.normaltestM = [] if len(numbersM)<8 else scipy.stats.normaltest(numbersM)
+            tests.normaltestW = [] if len(numbersW)<8 else scipy.stats.normaltest(numbersW)
             tests.describeM = scipy.stats.describe(numbersM)
             tests.describeW = scipy.stats.describe(numbersW)
             tests.percentilesM = numpy.percentile(numpy.array(numbersM), CalcResult.percentiles)
@@ -196,8 +196,8 @@ class CalcResult:
 # Основная программа (быстрые/медленные корты для мужчин/женщин)
 def mainFastSlow():
     # Читаем из файла
-    rowsColsSettings = RowsColsSettings(строкаНачало=1, строкаКонец=100, столбецНачало=1, столбецКонец=30, строкаДанныхНачало=2, строкаДанныхКонец=None, столбецДанныхНачало=7, столбецДанныхКонец=None)
-    allData = ExcelData.readDataFile("Таблица (все данные) М-Ж, Б-М v01.xlsx", '', "Данные", rowsColsSettings)
+    rowsColsSettings = RowsColsSettings(строкаНачало=1, строкаКонец=92, столбецНачало=1, столбецКонец=30, строкаДанныхНачало=2, строкаДанныхКонец=None, столбецДанныхНачало=7, столбецДанныхКонец=None)
+    allData = ExcelData.readDataFile("Таблица (все данные) М-Ж, Б-М v03_2.xlsx", '', "Данные", rowsColsSettings)
     print("Прочитано excel ячеек: "+str(len(allData.tablePoints)))
     # Переводим ячейки в точки с атрибутами
     dataPoints = DataPoint.makeDataPoints(allData, rowsColsSettings, {}, {1 : "Показатель"}) # 1 - номер строки с названиями показателей
@@ -231,6 +231,14 @@ def mainFastSlow():
     CalcResult.write(res,"res_fastslow_4_W_FS.csv", orderDict)                          # Запись в файл с разделителями
     CalcResult.diagrams(res, "res_fastslow_diagrams_4_W_FS.png", orderDict, legendList) # Вывод диаграмм
     CalcResult.boxplots(res, "res_fastslow_boxplots_4_W_FS.png", orderDict, legendList) # Вывод ящиков с усами
+    # Группируем по атрибутам "Пол"
+    groupedData = GroupedDataPoints.groupByList(dataPoints, ["Показатель", "Пол"])
+    orderDict = groupedData.buildColDict("Показатель")
+    legendList = ["Мужчины","Женщины"]
+    res = CalcResult.calc(groupedData, ["Мужчины"], ["Женщины"])
+    CalcResult.write(res,"res_fastslow_5_MW.csv", orderDict)                            # Запись в файл с разделителями
+    CalcResult.diagrams(res, "res_fastslow_diagrams_5_MW.png", orderDict, legendList)   # Вывод диаграмм
+    CalcResult.boxplots(res, "res_fastslow_boxplots_5_MW.png", orderDict, legendList)   # Вывод ящиков с усами
     return
 
 # Основная программа (временные отрезки)
@@ -327,7 +335,7 @@ def mainActions():
 #     return
 
 mainFastSlow()
-mainTime()
+#mainTime()
 #mainActions()
 #rang()
 
