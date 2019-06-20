@@ -25,11 +25,11 @@ class LoadData:
 
     # Наложение фильтра по вхождению строк в значение колонки. Истина, если есть вхождение хотя бы одной строки.
     def filterByStrOr(self, df, colname, strings):
-        return df[df[colname].notna() & reduce(lambda x,y: x|y, map(lambda str: df[colname].str.contains(str, flags = re.IGNORECASE), strings))]
+        return df[df[colname].notna() & reduce(lambda x,y: x|y, map(lambda s: df[colname].astype(str).str.contains(s, flags = re.IGNORECASE), strings))]
 
     # Наложение фильтра по вхождению строк в значение колонки. Истина, если есть вхождение всех строк.
     def filterByStrAnd(self, df, colname, strings):
-        return df[df[colname].notna() & reduce(lambda x,y: x&y, map(lambda str: df[colname].str.contains(str, flags = re.IGNORECASE), strings))]
+        return df[df[colname].notna() & reduce(lambda x,y: x&y, map(lambda s: df[colname].astype(str).str.contains(s, flags = re.IGNORECASE), strings))]
 
     # Перевод бинарного поля в массив чисел float. На число выделяется 4 байта, которые меняют свой порядок на обратный перед переводом во float.
     def toFloatArray(self, binData):
@@ -65,19 +65,24 @@ def readTables():
     trains = ld.readTable(conn, "dbo.Trains")
     points = ld.readTable(conn, "dbo.Points")
     measures = ld.readTable(conn, "dbo.Measures")
-    data = ld.readSql(conn, "select d.* from dbo.Data d \
-                                left join (select [idMeasure], max([Date]) as lastDate from dbo.Data group by [idMeasure]) ld on (d.[idMeasure]=ld.[idMeasure] and d.[Date]=ld.[lastDate]) \
-                            where ld.[idMeasure] is not null")
+    # Все данные измерений
+    data = ld.readTable(conn, "dbo.Data")
+    # Только самые новые из измерений
+    # data = ld.readSql(conn, "select d.* from dbo.Data d \
+    #                             left join (select [idMeasure], max([Date]) as lastDate from dbo.Data group by [idMeasure]) ld on (d.[idMeasure]=ld.[idMeasure] and d.[Date]=ld.[lastDate]) \
+    #                         where ld.[idMeasure] is not null")
     # Обработка таблиц - нужно много ресурсов
     #data["DynamicDataArray"] = data["DynamicData"].apply(ld.toFloatArray)
     #data["DynamicDataArrayLen"] = data["DynamicDataArray"].apply(len).to_int()
     # Фильтруем таблицы
     pumps = ld.filterByStrOr(trains, "Description", ["НПГ-720", "ЦГН 1250-71А"])
-    pointsTochka = ld.filterByStrOr(points, "Name", ["Точка"])
+    pointsTochka = ld.filterByStrOr(points, "Name", ["Точка 1"])
+    pointsTochka = ld.filterByStrOr(pointsTochka, "Direction", ["1"])
+    measuresSPms2 = ld.filterByStrOr(measures, "Name", ["СП м/с2"])
     # Оставляем только часть колонок
     pumpsShort = pumps.filter(["idTrain", "Name", "Description"])
     pointsShort = pointsTochka.filter(["idPoint", "idTrain", "Name", "Direction"]) # "Description"
-    measuresShort = measures.filter(["idMeasure", "idPoint", "Name"]) # "Description", "Note", "IsCritical"
+    measuresShort = measuresSPms2.filter(["idMeasure", "idPoint", "Name"]) # "Description", "Note", "IsCritical"
     dataShort = data.filter(["idMeasure", "Date", "Value1", "Value2", "DynamicData"])
     # Соединяем таблицы в одну
     pumpsPoints = pd.merge(pumpsShort, pointsShort, on="idTrain", how="left")
@@ -97,7 +102,8 @@ def readTables():
     p420_1 = p420_1.drop(["DynamicData"], axis=1)
     #p420_1.to_csv("~/Share/p420_1.csv", index=False)
     #p420_1_data.to_csv("~/Share/p420_1_data.csv", index=False)
-    with pd.ExcelWriter("/home/drew/Share/p420_1.xlsx") as writer:
+    with pd.ExcelWriter("/home/drew/UK/pumps.xlsx") as writer:
+        pumpsShort.to_excel(writer, sheet_name="pumpsShort", index=False)
         p420_1.to_excel(writer, sheet_name="p420_1", index=False)
         p420_1_data.to_excel(writer, sheet_name="p420_1_data", index=False)
         writer.save()
