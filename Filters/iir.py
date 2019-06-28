@@ -6,6 +6,41 @@ from scipy.integrate import simps, trapz
 import matplotlib.pyplot as plt
 import os
 
+def makeFigure(figname, x1, y11, y12, leg11, leg12, x2, y21, y22, leg21, leg22, x3, y31, y32, leg31, leg32):
+    fig = plt.figure(num=figname, figsize=(40,15), dpi=100)
+    figsize = 310 # 3 строки, 1 столбец
+
+    figsize += 1
+    sp1 = fig.add_subplot(figsize)
+    sp1.plot(x1, y11, 'b', alpha=0.75)
+    sp1.plot(x1, y12, 'r--')
+    sp1.legend((leg11, leg12), loc='best')
+    sp1.grid(True)
+
+    figsize += 1
+    sp2 = fig.add_subplot(figsize)
+    sp2.plot(x2, y21, 'b', alpha=0.75)
+    sp2.plot(x2, y22, 'r--')
+    sp2.legend((leg21, leg22), loc='best')
+    sp2.grid(True)    
+
+    figsize += 1
+    sp3 = fig.add_subplot(figsize) 
+    sp3.plot(x3, y31, 'b', alpha=0.75)
+    sp3.plot(x3, y32, 'r--')
+    sp3.legend((leg31, leg32), loc='best')
+    sp3.grid(True)
+
+    # figsize += 1
+    # spP = fig.add_subplot(figsize)
+    # spP.plot(fP, PdenP, 'b', alpha=0.75)
+    # spP.plot(fPf, PdenPf, 'r--')
+    # spP.legend(('signal periodogram', 'lfilter periodogram'), loc='best')
+    # spP.grid(True)
+
+    plt.savefig(figname+'.png')
+    #plt.show()    
+
 def doFilter(t, y, freqrange, filename, picsuffix):
     #data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
     #print(len(data))
@@ -32,39 +67,10 @@ def doFilter(t, y, freqrange, filename, picsuffix):
     #print(spectrum[0], spectrum[0]/N, np_abs(spectrum[0]), np_abs(spectrum[0]/N), np.mean(y))
     #print(spectrumf[0], spectrumf[0]/N)
 
-    fig = plt.figure(num=filename+picsuffix, figsize=(40,15), dpi=100)
-    figsize = 310 # 3 строки, 1 столбец
-
-    figsize += 1
-    spY = fig.add_subplot(figsize)
-    spY.plot(t, y, 'b', alpha=0.75)
-    spY.plot(t, yf, 'r--')
-    spY.legend(('signal', 'lfilter'), loc='best')
-    spY.grid(True)
-
-    figsize += 1
-    spS = fig.add_subplot(figsize)
-    spS.plot(rfftfreq(N, 1./F), np_abs(spectrum)/N, 'b', alpha=0.75)
-    spS.plot(rfftfreq(N, 1./F), np_abs(spectrumf)/N, 'r--')
-    spS.legend(('signal spectrum', 'lfilter spectrum'), loc='best')
-    spS.grid(True)    
-
-    figsize += 1
-    spW = fig.add_subplot(figsize) 
-    spW.plot(fW, PdenW, 'b', alpha=0.75)
-    spW.plot(fWf, PdenWf, 'r--')
-    spW.legend(('signal welch', 'lfilter welch'), loc='best')
-    spW.grid(True)
-
-    # figsize += 1
-    # spP = fig.add_subplot(figsize)
-    # spP.plot(fP, PdenP, 'b', alpha=0.75)
-    # spP.plot(fPf, PdenPf, 'r--')
-    # spP.legend(('signal periodogram', 'lfilter periodogram'), loc='best')
-    # spP.grid(True)
-
-    plt.savefig(filename+'_'+picsuffix+'.png')
-    #plt.show()
+    makeFigure(filename+'_'+picsuffix, 
+        t, y, yf, 'signal', 'lfilter',
+        rfftfreq(N, 1./F), np_abs(spectrum)/N, np_abs(spectrumf)/N, 'signal spectrum', 'lfilter spectrum',
+        fW, PdenW, PdenWf, 'signal welch', 'lfilter welch')
 
 def integrateSignal(t, y, nomean):
     tI, yI = list(), list()
@@ -88,13 +94,46 @@ def doFilterForSingalAndIntegrals(filename, freqrange):
     tI2, yI2 = integrateSignal(tI, yI, True)
     doFilter(tI2, yI2, freqrange, filename, '2')
 
+def doFilterForIntegrals(filename, freqrange):
+    data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
+    t = data[:,0]
+    y = data[:,1]
+    tI, yI = integrateSignal(t, y, True)
+    tII, yII = integrateSignal(tI, yI, True)
+
+    T = (t[1] - t[0]) / 1000 # Интервал времени дискретизации. 1000 - переводит мс в с
+    F = 1/T                  # Частота дискретизации
+    nyq = F/2                # Частота Найквиста (половина от частоты дискретизации)
+    Wn = freqrange/nyq
+
+    b, a = signal.iirfilter(6, Wn, btype='bandpass', ftype='butter')
+    yf = signal.lfilter(b, a, y)
+    
+    tIf, yIf = integrateSignal(t, yf, True)
+    yIff = signal.lfilter(b, a, yIf)
+
+    tIIf, yIIf = integrateSignal(tIf, yIff, True)
+
+    fW, PdenW = signal.welch(yII, F)
+    fWf, PdenWf = signal.welch(yIIf, F)
+
+    N = len(tII)
+    spectrum = rfft(yII)
+    spectrumf = rfft(yIIf)    
+
+    makeFigure(filename, 
+        tII, yII, yIIf, 'signal 2 integ', 'lfilter 2 integ',
+        rfftfreq(N, 1./F), np_abs(spectrum)/N, np_abs(spectrumf)/N, 'signal 2 integ spectrum', 'lfilter 2 integ spectrum',
+        fW, PdenW, PdenWf, 'signal 2 integ welch', 'lfilter 2 integ welch')
+
 def doFilterForFiles(dir, freqrange):
     files = os.listdir(dir)
     files = filter(lambda f: f.endswith('.txt'), files)
     for onefile in files:
         filename = dir+'/'+onefile
         print(filename+'...')        
-        doFilterForSingalAndIntegrals(filename, freqrange)
-    print('done')
+        # doFilterForSingalAndIntegrals(filename, freqrange)
+        doFilterForIntegrals(filename, freqrange)
+    # print('done')
 
 doFilterForFiles('/home/drew/Filters', [10, 1000])
