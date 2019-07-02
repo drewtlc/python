@@ -6,100 +6,108 @@ from scipy.integrate import simps, trapz
 import matplotlib.pyplot as plt
 import os
 
-def makeFigure(figname, x1, y11, y12, leg11, leg12, x2, y21, y22, leg21, leg22, x3, y31, y32, leg31, leg32):
-    fig = plt.figure(num=figname, figsize=(40,15), dpi=100)
-    figsize = 310 # 3 строки, 1 столбец
+def alignLen(x,y):
+    return y if len(y)==len(x) else np.concatenate((y, np.zeros(len(x)-len(y))))
 
-    figsize += 1
-    sp1 = fig.add_subplot(figsize)
-    sp1.plot(x1, y11, 'b', alpha=0.75)
-    sp1.plot(x1, y12, 'r--')
-    sp1.legend((leg11, leg12), loc='best')
-    sp1.grid(True)
-
-    figsize += 1
-    sp2 = fig.add_subplot(figsize)
-    sp2.plot(x2, y21, 'b', alpha=0.75)
-    sp2.plot(x2, y22, 'r--')
-    sp2.legend((leg21, leg22), loc='best')
-    sp2.grid(True)    
-
-    figsize += 1
-    sp3 = fig.add_subplot(figsize) 
-    sp3.plot(x3, y31, 'b', alpha=0.75)
-    sp3.plot(x3, y32, 'r--')
-    sp3.legend((leg31, leg32), loc='best')
-    sp3.grid(True)
-
-    # figsize += 1
-    # spP = fig.add_subplot(figsize)
-    # spP.plot(fP, PdenP, 'b', alpha=0.75)
-    # spP.plot(fPf, PdenPf, 'r--')
-    # spP.legend(('signal periodogram', 'lfilter periodogram'), loc='best')
-    # spP.grid(True)
+def makeFigure(figname, params):
+    plotsCount = len(params)
+    fig = plt.figure(num=figname, figsize=(40,5*plotsCount), dpi=100)
+    figsize = 100*plotsCount + 10 # plotsCount строк, 1 столбец
+    colors = ['r', 'g', 'b']
+    lines, alllines = ['-','--','-.'], []
+    for line in lines:
+        alllines = np.concatenate((alllines, np.repeat(line, len(colors))))
+    for param in params:
+        figsize += 1
+        sp = fig.add_subplot(figsize)
+        x = param[0]
+        yList = param[1]
+        legList = param[2]
+        for i in range(len(yList)):
+            y = yList[i]
+            plotY = alignLen(x, y)
+            color = colors[i % len(colors)]
+            line = alllines[i % len(alllines)]
+            sp.plot(x, plotY, color, linestyle=line)
+            # sp.plot(x1, y12, 'r--')
+        sp.legend(legList, loc='best')
+        sp.grid(True)
 
     plt.savefig(figname+'.png')
     #plt.show()    
 
-def doFilter(t, y, freqrange, filename, picsuffix):
-    #data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
-    #print(len(data))
-    #print(data)
-    # t = data[:,0]
-    # y = data[:,1]
-    T = (t[1] - t[0]) / 1000 # Интервал времени дискретизации. 1000 - переводит мс в с
-    F = 1/T                  # Частота дискретизации
-    nyq = F/2                # Частота Найквиста (половина от частоты дискретизации)
-    Wn = freqrange/nyq
-    N = len(t)
+# def doFilter(t, y, freqrange, filename, picsuffix):
+#     #data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
+#     #print(len(data))
+#     #print(data)
+#     # t = data[:,0]
+#     # y = data[:,1]
+#     T = (t[1] - t[0]) / 1000 # Интервал времени дискретизации. 1000 - переводит мс в с
+#     F = 1/T                  # Частота дискретизации
+#     nyq = F/2                # Частота Найквиста (половина от частоты дискретизации)
+#     Wn = freqrange/nyq
+#     N = len(t)
 
-    b, a = signal.iirfilter(6, Wn, btype='bandpass', ftype='butter')
-    yf = signal.lfilter(b, a, y)
+#     b, a = signal.iirfilter(6, Wn, btype='bandpass', ftype='butter')
+#     yf = signal.lfilter(b, a, y)
     
-    fW, PdenW = signal.welch(y, F)
-    fWf, PdenWf = signal.welch(yf, F)
+#     fW, PdenW = signal.welch(y, F)
+#     fWf, PdenWf = signal.welch(yf, F)
 
-    fP, PdenP = signal.periodogram(y, F)
-    fPf, PdenPf = signal.periodogram(yf, F)
+#     fP, PdenP = signal.periodogram(y, F)
+#     fPf, PdenPf = signal.periodogram(yf, F)
 
-    spectrum = rfft(y)
-    spectrumf = rfft(yf)
-    #print(spectrum[0], spectrum[0]/N, np_abs(spectrum[0]), np_abs(spectrum[0]/N), np.mean(y))
-    #print(spectrumf[0], spectrumf[0]/N)
+#     spectrum = rfft(y)
+#     spectrumf = rfft(yf)
+#     #print(spectrum[0], spectrum[0]/N, np_abs(spectrum[0]), np_abs(spectrum[0]/N), np.mean(y))
+#     #print(spectrumf[0], spectrumf[0]/N)
 
-    makeFigure(filename+'_'+picsuffix, 
-        t, y, yf, 'signal', 'lfilter',
-        rfftfreq(N, 1./F), np_abs(spectrum)/N, np_abs(spectrumf)/N, 'signal spectrum', 'lfilter spectrum',
-        fW, PdenW, PdenWf, 'signal welch', 'lfilter welch')
+#     makeFigure(filename+'_'+picsuffix, 
+#         [[t, [y, yf], ['signal', 'lfilter']],
+#         [rfftfreq(N, 1./F), [np_abs(spectrum)/N, np_abs(spectrumf)/N], ['signal spectrum', 'lfilter spectrum']],
+#         [fW, [PdenW, PdenWf], ['signal welch', 'lfilter welch']]])
 
 def integrateSignal(t, y, nomean):
-    tI, yI = list(), list()
+    tI, yI, I = list(), list(), 0
     m = np.mean(y)
     y_m = y if nomean==False else y-m
     blockSize = 2
     for i in range(0, len(t)-1):
         tblock = t[i:i+blockSize]
         yblock = y_m[i:i+blockSize]
+        I += trapz(yblock, tblock)
         tI.append(tblock[0])
-        yI.append(trapz(yblock, tblock))
+        yI.append(I)
     return np.asarray(tI), np.asarray(yI)
 
-def doFilterForSingalAndIntegrals(filename, freqrange):
-    data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
-    t = data[:,0]
-    y = data[:,1]
-    doFilter(t, y, freqrange, filename, '0')
-    tI, yI = integrateSignal(t, y, True)
-    doFilter(tI, yI, freqrange, filename, '1')
-    tI2, yI2 = integrateSignal(tI, yI, True)
-    doFilter(tI2, yI2, freqrange, filename, '2')
+def diffSignal(t, y):
+    td, yd = list(), list()
+    blockSize = 2
+    for i in range(0, len(t)-1):
+        tblock = t[i:i+blockSize]
+        yblock = y[i:i+blockSize]
+        td.append(tblock[0])
+        yd.append((yblock[1]-yblock[0])/(tblock[1]-tblock[0]))
+    return np.asarray(td), np.asarray(yd)
+
+# def doFilterForSingalAndIntegrals(filename, freqrange):
+#     data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
+#     t = data[:,0]
+#     y = data[:,1]
+#     doFilter(t, y, freqrange, filename, '0')
+#     tI, yI = integrateSignal(t, y, True)
+#     doFilter(tI, yI, freqrange, filename, '1')
+#     tI2, yI2 = integrateSignal(tI, yI, True)
+#     doFilter(tI2, yI2, freqrange, filename, '2')
 
 def doFilterForIntegrals(filename, freqrange):
     data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
     t = data[:,0]
     y = data[:,1]
-    tI, yI = integrateSignal(t, y, True)
-    tII, yII = integrateSignal(tI, yI, True)
+
+    # m = np.mean(y)
+    # y = np.ones(len(t))
+    # y = np.sin(2*np.pi*t/1000*50)
 
     T = (t[1] - t[0]) / 1000 # Интервал времени дискретизации. 1000 - переводит мс в с
     F = 1/T                  # Частота дискретизации
@@ -107,24 +115,51 @@ def doFilterForIntegrals(filename, freqrange):
     Wn = freqrange/nyq
 
     b, a = signal.iirfilter(6, Wn, btype='bandpass', ftype='butter')
-    yf = signal.lfilter(b, a, y)
+    yf = signal.lfilter(b, a, y)                 # фильтрованный сигнал
+
+    tI, yI = integrateSignal(t, y, True)         # первый интеграл сигнала
+    yIm = yI - np.mean(yI)                       # первый интеграл сигнала за вычетом средней
+    yIf = signal.lfilter(b, a, yI)               # фильтрованный первый интеграл сигнала
+    tfI, yfI = integrateSignal(t, yf, True)      # первый интеграл фильтрованного сигнала
+    yfIf = signal.lfilter(b, a, yfI)             # фильтрованный первый интеграл фильтрованного сигнала
     
-    tIf, yIf = integrateSignal(t, yf, True)
-    yIff = signal.lfilter(b, a, yIf)
+    # print('mean(yI)='+str(np.mean(yI))+', mean(yIf)='+str(np.mean(yIf))) 
+    td, yd = diffSignal(tI, yI)
+    s = np.sum(np.std(y-alignLen(y, yd)))
+    print(s)
 
-    tIIf, yIIf = integrateSignal(tIf, yIff, True)
+    tII, yII = integrateSignal(tI, yI, True)     # второй интеграл сигнала
+    yIIm = yII - np.mean(yII)                    # второй интеграл сигнала за вычетом средней
+    yIIf = signal.lfilter(b, a, yII)             # фильтрованный второй интеграл сигнала
+    tfII, yfII = integrateSignal(tfI, yfI, True) # второй интеграл фильтрованного сигнала
+    yfIIf = signal.lfilter(b, a, yfII)           # фильтрованный второй интеграл фильтрованного сигнала
 
-    fW, PdenW = signal.welch(yII, F)
-    fWf, PdenWf = signal.welch(yIIf, F)
+    fW, W = signal.welch(y, F)
+    fWf, Wf = signal.welch(yf, F)
+
+    fWI, WI = signal.welch(yI, F)
+    fWIf, WIf = signal.welch(yIf, F)
+    fWfI, WfI = signal.welch(yfI, F)
+    fWfIf, WfIf = signal.welch(yfIf, F)
+
+    fWII, WII = signal.welch(yII, F)
+    fWIIf, WIIf = signal.welch(yIIf, F)
+    fWfII, WfII = signal.welch(yfII, F)
+    fWfIIf, WfIIf = signal.welch(yfIIf, F)
 
     N = len(tII)
-    spectrum = rfft(yII)
-    spectrumf = rfft(yIIf)    
+    spectrumII = rfft(yII)
+    spectrumIIf = rfft(yIIf)    
+    spectrumfII = rfft(yfII)    
 
     makeFigure(filename, 
-        tII, yII, yIIf, 'signal 2 integ', 'lfilter 2 integ',
-        rfftfreq(N, 1./F), np_abs(spectrum)/N, np_abs(spectrumf)/N, 'signal 2 integ spectrum', 'lfilter 2 integ spectrum',
-        fW, PdenW, PdenWf, 'signal 2 integ welch', 'lfilter 2 integ welch')
+        [[t, [y, yf, yd], ['сигнал', 'фильтрованный сигнал', 'инт/диф сигнал']],
+        [fW, [W, Wf], ['спектр сигнала по Уэлчу', 'спектр фильтрованного сигнала по Уэлчу']],
+        [tI, [yI, yIm, yIf, yfI, yfIf], ['первый интеграл сигнала', 'первый интеграл сигнала за вычетом средней', 'фильтрованный первый интеграл сигнала', 'первый интеграл фильтрованного сигнала', 'фильтрованный первый интеграл фильтрованного сигнала']],
+        [fWI, [WI, WIf, WfI, WfIf], ['спектр первого интеграла сигнала по Уэлчу', 'спектр фильтрованного первого интеграла сигнала по Уэлчу', 'спектр первого интеграла фильтрованного сигнала по Уэлчу', 'спектр фильтрованного первого интеграла фильтрованного сигнала по Уэлчу']],
+        [tII, [yII, yIIf, yfII, yfIIf], ['второй интеграл сигнала', 'фильтрованный второй интеграл сигнала', 'второй интеграл фильтрованного сигнала', 'фильтрованный второй интеграл фильтрованного сигнала']],
+        #[rfftfreq(N, 1./F), [np_abs(spectrumII)/N, np_abs(spectrumIIf)/N, np_abs(spectrumfII)/N], ['спектр второго интеграла сигнала', 'спектр фильтрованного второго интеграла сигнала', 'спектр второго интеграла фильтрованного сигнала']],
+        [fWII, [WII, WIIf, WfII, WfIIf], ['спектр второго интеграла сигнала по Уэлчу', 'спектр фильтрованного второго интеграла сигнала по Уэлчу', 'спектр второго интеграла фильтрованного сигнала по Уэлчу', 'спектр фильтрованного второго интеграла фильтрованного сигнала по Уэлчу']]])
 
 def doFilterForFiles(dir, freqrange):
     files = os.listdir(dir)
