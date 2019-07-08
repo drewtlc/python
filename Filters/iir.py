@@ -1,5 +1,4 @@
 import numpy as np
-from numpy import abs as np_abs
 from numpy.fft import rfft, rfftfreq
 from scipy import signal
 from scipy.integrate import simps, trapz
@@ -59,12 +58,12 @@ def makeFigure(figname, params):
 
 #     spectrum = rfft(y)
 #     spectrumf = rfft(yf)
-#     #print(spectrum[0], spectrum[0]/N, np_abs(spectrum[0]), np_abs(spectrum[0]/N), np.mean(y))
+#     #print(spectrum[0], spectrum[0]/N, np.abs(spectrum[0]), np.abs(spectrum[0]/N), np.mean(y))
 #     #print(spectrumf[0], spectrumf[0]/N)
 
 #     makeFigure(filename+'_'+picsuffix, 
 #         [[t, [y, yf], ['signal', 'lfilter']],
-#         [rfftfreq(N, 1./F), [np_abs(spectrum)/N, np_abs(spectrumf)/N], ['signal spectrum', 'lfilter spectrum']],
+#         [rfftfreq(N, 1./F), [np.abs(spectrum)/N, np.abs(spectrumf)/N], ['signal spectrum', 'lfilter spectrum']],
 #         [fW, [PdenW, PdenWf], ['signal welch', 'lfilter welch']]])
 
 def integrateSignal(t, y, nomean):
@@ -99,6 +98,14 @@ def diffSignal(t, y):
 #     doFilter(tI, yI, freqrange, filename, '1')
 #     tI2, yI2 = integrateSignal(tI, yI, True)
 #     doFilter(tI2, yI2, freqrange, filename, '2')
+
+def filterRFFT(freq, spectr, level=0.001):
+    freqFilter, spectrFilter = list(), list()
+    flt = filter(lambda t: np.abs(t[1])>level, zip(freq, spectr))
+    for f,s in flt:
+        freqFilter.append(f)
+        spectrFilter.append(s)
+    return np.asarray(freqFilter), np.asarray(spectrFilter)
 
 def doFilterForIntegrals(filename, freqrange):
     data = np.genfromtxt(open(filename, encoding='Windows-1251'), dtype=(float, float), skip_header=18)
@@ -152,13 +159,15 @@ def doFilterForIntegrals(filename, freqrange):
     spectrumIIf = rfft(yIIf)    
     spectrumfII = rfft(yfII)    
 
+    freqFilter, spectrFilter = filterRFFT(rfftfreq(len(tII), 1./F), rfft(yII), 0.1)
+
     makeFigure(filename, 
         [[t, [y, yf, yd], ['сигнал', 'фильтрованный сигнал', 'инт/диф сигнал']],
         [fW, [W, Wf], ['спектр сигнала по Уэлчу', 'спектр фильтрованного сигнала по Уэлчу']],
         [tI, [yI, yIm, yIf, yfI, yfIf], ['первый интеграл сигнала', 'первый интеграл сигнала за вычетом средней', 'фильтрованный первый интеграл сигнала', 'первый интеграл фильтрованного сигнала', 'фильтрованный первый интеграл фильтрованного сигнала']],
         [fWI, [WI, WIf, WfI, WfIf], ['спектр первого интеграла сигнала по Уэлчу', 'спектр фильтрованного первого интеграла сигнала по Уэлчу', 'спектр первого интеграла фильтрованного сигнала по Уэлчу', 'спектр фильтрованного первого интеграла фильтрованного сигнала по Уэлчу']],
         [tII, [yII, yIIf, yfII, yfIIf], ['второй интеграл сигнала', 'фильтрованный второй интеграл сигнала', 'второй интеграл фильтрованного сигнала', 'фильтрованный второй интеграл фильтрованного сигнала']],
-        #[rfftfreq(N, 1./F), [np_abs(spectrumII)/N, np_abs(spectrumIIf)/N, np_abs(spectrumfII)/N], ['спектр второго интеграла сигнала', 'спектр фильтрованного второго интеграла сигнала', 'спектр второго интеграла фильтрованного сигнала']],
+        #[rfftfreq(N, 1./F), [np.abs(spectrumII)/N, np.abs(spectrumIIf)/N, np.abs(spectrumfII)/N], ['спектр второго интеграла сигнала', 'спектр фильтрованного второго интеграла сигнала', 'спектр второго интеграла фильтрованного сигнала']],
         [fWII, [WII, WIIf, WfII, WfIIf], ['спектр второго интеграла сигнала по Уэлчу', 'спектр фильтрованного второго интеграла сигнала по Уэлчу', 'спектр второго интеграла фильтрованного сигнала по Уэлчу', 'спектр фильтрованного второго интеграла фильтрованного сигнала по Уэлчу']]])
 
 def doFilterForFiles(dir, freqrange):
