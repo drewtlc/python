@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.fft import rfft, rfftfreq
+from numpy.fft import rfft, rfftfreq, irfft
 from scipy import signal
 from scipy.integrate import simps, trapz
 import matplotlib.pyplot as plt
@@ -114,15 +114,28 @@ def doFilterForIntegrals(filename, freqrange):
 
     # m = np.mean(y)
     # y = np.ones(len(t))
-    # y = np.sin(2*np.pi*t/1000*50)
+    # y = np.sin(2*np.pi*t/1000*500)
 
     T = (t[1] - t[0]) / 1000 # Интервал времени дискретизации. 1000 - переводит мс в с
     F = 1/T                  # Частота дискретизации
     nyq = F/2                # Частота Найквиста (половина от частоты дискретизации)
     Wn = freqrange/nyq
 
+    #sp = rfft(y)
+    #sp_abs = np.abs(sp)
+    #sp2 = sp_abs[700:900]
+
+    #y_r = irfft(sp)
+    #err = y-y_r
+
+    freqFilterY, spectrFilterY = filterRFFT(rfftfreq(len(t), 1./F), rfft(y), 0.1)
+    freqSpAbsFilter = list(map(lambda t: list([t[0], t[1][1], t[1][0]]), zip(freqFilterY, zip(spectrFilterY, np.abs(spectrFilterY)))))
+
     b, a = signal.iirfilter(6, Wn, btype='bandpass', ftype='butter')
     yf = signal.lfilter(b, a, y)                 # фильтрованный сигнал
+
+    #spf = rfft(yf)
+    #spf_abs = np.abs(spf)
 
     tI, yI = integrateSignal(t, y, True)         # первый интеграл сигнала
     yIm = yI - np.mean(yI)                       # первый интеграл сигнала за вычетом средней
