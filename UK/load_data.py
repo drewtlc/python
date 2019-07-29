@@ -65,6 +65,19 @@ class LoadData:
         dmyArr = dmy.split("-")
         return datetime.date(int(dmyArr[0]), int(dmyArr[1]), int(dmyArr[2]))
 
+    # Запись в файл
+    def writeToFile(self, fileName, df, dfSheetName="dataframe", dfRows=None, pt=None, ptSheetName="pTable", ptRows=None):
+        print("Запись в файл " + fileName)
+        with pd.ExcelWriter(fileName) as writer:
+            print("  " + dfSheetName + ("" if dfRows is None else " (" + str(dfRows) + " строк)") + "...")
+            dfWrite = df if dfRows is None else df.head(dfRows)
+            dfWrite.to_excel(writer, sheet_name=dfSheetName, index=False)
+            if pt is not None:
+                print("  " + ptSheetName + ("" if ptRows is None else " (" + str(ptRows) + " строк)") + "...")
+                ptWrite = pt if ptRows is None else df.head(ptRows)
+                ptWrite.to_excel(writer, sheet_name=ptSheetName)
+        print("Записьм в файл завершена")
+
 # Класс для логики, которая имеет специфику обработки базы UK
 class UKLoadData(LoadData):
     # Построение DataFrame по разбору XML-поля
@@ -91,6 +104,14 @@ class UKLoadData(LoadData):
         dfCols.columns = list(map(lambda el: key + "_" + str(el), dic[key]))
         return dfCols
 
+    def doPivotTable(self, df, pivotIndexColumns, pivotValuesColumns, filterColumn=None, filterValues=None):
+        pivotDf = df[pivotIndexColumns + pivotValuesColumns]
+        if filterColumn is not None:
+            pivotDf = self.filterByStrOr(pivotDf, filterColumn, filterValues)
+        pivotDf = pivotDf.sort_values(by=pivotIndexColumns + pivotValuesColumns)
+        pTable = pd.pivot_table(pivotDf, index=pivotIndexColumns, values=pivotValuesColumns, aggfunc=[len,min,max])
+        return pTable
+
 #    def toString(self, floatArray):
 #        return reduce(lambda s,f: (s if (s=="") else s+",") + str(f), floatArray, "")
 
@@ -107,7 +128,7 @@ def readTables():
     measures = ld.readTable(conn, "dbo.Measures")
     # Все данные измерений
     data = ld.readTable(conn, "dbo.Data")
-    #   олько самые новые из измерений
+    #   Только самые новые из измерений
     #   data = ld.readSql(conn, "select d.* from dbo.Data d \
     #                             left join (select [idMeasure], max([Date]) as lastDate from dbo.Data group by [idMeasure]) ld on (d.[idMeasure]=ld.[idMeasure] and d.[Date]=ld.[lastDate]) \
     #                         where ld.[idMeasure] is not null")
@@ -154,6 +175,8 @@ def readTables():
     dataMesuresPoints = pd.merge(dataAndMesures, pointsCols, how="left", left_on="measures_idPoint", right_on="points_idPoint")
     dataMesuresPointsComponentsPoints = pd.merge(dataMesuresPoints, trainsAndComponentsWithBindingsAndPoints, how="left", left_on=["points_idPoint", "points_Direction"], right_on=["trainComponentsBindings_idPoint", "compComponentsPoints_Direction"])
     del trainsAndComponents, trainsAndComponentsWithBindings, trainsAndComponentsWithBindingsAndPoints, dataAndMesures, dataMesuresPoints
+    # Группируем, чтобы получить временные ряды
+    
     # Изменяем колонки, чтобы сделать хорошую сводку
     dataMesuresPointsComponentsPoints["trainComponents_Name_Description"] = dataMesuresPointsComponentsPoints["trainComponents_Name"] + " " + dataMesuresPointsComponentsPoints["trainComponents_Description"]
     dataMesuresPointsComponentsPoints["data_Date"] = dataMesuresPointsComponentsPoints["data_Date"].apply(ld.parseDate)
@@ -164,28 +187,21 @@ def readTables():
                          "points_idPoint", "points_Name", "points_Description", "points_Direction", 
                          "measures_idMeasure", "measures_Name", "measures_Description"]
     pivotValuesColumns = ["data_Date"]
-    pivotDf = dataMesuresPointsComponentsPoints[pivotIndexColumns + pivotValuesColumns]
-    del dataMesuresPointsComponentsPoints
-    # Оставим только насосы CNH-B
-    # pivotDf = ld.filterByStrOr(pivotDf, "trains_Description", ["CNH-B"])
-    # Оставляем один насос 5.5-1G11
-    pivotDf = ld.filterByStrOr(pivotDf, "trains_Name", ["5.5-1G11"])    
-    pivotDf = pivotDf.sort_values(by=pivotIndexColumns + pivotValuesColumns)
-    pTable = pd.pivot_table(pivotDf, index=pivotIndexColumns, values=pivotValuesColumns, aggfunc=[len,min,max])
-    # print(df1.head(10))
-    # print(df2.head(10))
-    # print(df3.head(10))
-    dfRes_1 = pivotDf
-    print("Запись в файл...")
-    # dfRes_1 = dfRes_1.drop(["data_DynamicData"], axis=1)
-    with pd.ExcelWriter("/home/drew/UK/pumps.xlsx") as writer:
-        # dfRes_1.head(2000).to_excel(writer, sheet_name="dfRes_1", index=False)
-        # pTable.head(2000).to_excel(writer, sheet_name="pTable")
-        # dfRes_1.head(10000).to_excel(writer, sheet_name="dfRes_1", index=False)
-        dfRes_1.to_excel(writer, sheet_name="5.5-1G11", index=False)
-        pTable.to_excel(writer, sheet_name="pTable")
-        writer.save()
-    print("Готово")
+    pTable = ld.doPivotTable(dataMesuresPointsComponentsPoints, pivotIndexColumns, pivotValuesColumns, "trains_Name", ["5.5-1G11"]) # "trains_Description", ["CNH-B"]
+    # Запись в файл
+    dataMesuresPointsComponentsPoints = dataMesuresPointsComponentsPoints.drop(["data_DynamicData"], axis=1)
+    ld.writeToFile("/home/drew/UK/pumps.xlsx", dataMesuresPointsComponentsPoints, "5.5-1G11", 2000, pTable)
+    # dfRes_1 = pivotDf
+    # print("Запись в файл...")
+    # # dfRes_1 = dfRes_1.drop(["data_DynamicData"], axis=1)
+    # with pd.ExcelWriter("/home/drew/UK/pumps.xlsx") as writer:
+    #     # dfRes_1.head(2000).to_excel(writer, sheet_name="dfRes_1", index=False)
+    #     # pTable.head(2000).to_excel(writer, sheet_name="pTable")
+    #     # dfRes_1.head(10000).to_excel(writer, sheet_name="dfRes_1", index=False)
+    #     dfRes_1.to_excel(writer, sheet_name="5.5-1G11", index=False)
+    #     pTable.to_excel(writer, sheet_name="pTable")
+    #     writer.save()
+    # print("Готово")
 
     #colNames += list(map(lambda el: "data" + str(el), colDict["data"]))
     # with pd.merge(data[["idMeasure", "Date", "DynamicData"]], measures[["idMeasure", "idPoint", "Name", "Description"]], on="idMeasure", how="left") as dataMeasures:
