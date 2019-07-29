@@ -114,7 +114,12 @@ def doFilterForIntegrals(filename, freqrange):
 
     # m = np.mean(y)
     # y = np.ones(len(t))
-    # y = np.sin(2*np.pi*t/1000*500)
+    # Генерируем тестовый сигнал. Фильтр будет работать в полосе [10, 1000]
+    y1 = np.sin(2*np.pi*t/1000*80)          # 80 Гц
+    y2 = np.sin(2*np.pi*t/1000*1005)        # 1005 Гц
+    y3 = np.sin(2*np.pi*t/1000*5)           # 5 Гц
+    y4 = np.sin(2*np.pi*t/1000*0.5)*0.001   # 0.5 Гц и малая амплитуда
+    y = y1+y2+y3+y4
 
     T = (t[1] - t[0]) / 1000 # Интервал времени дискретизации. 1000 - переводит мс в с
     F = 1/T                  # Частота дискретизации
@@ -137,42 +142,42 @@ def doFilterForIntegrals(filename, freqrange):
     #spf = rfft(yf)
     #spf_abs = np.abs(spf)
 
-    tI, yI = integrateSignal(t, y, True)         # первый интеграл сигнала
+    tI, yI = integrateSignal(t, y, False)         # первый интеграл сигнала
     yIm = yI - np.mean(yI)                       # первый интеграл сигнала за вычетом средней
     yIf = signal.lfilter(b, a, yI)               # фильтрованный первый интеграл сигнала
-    tfI, yfI = integrateSignal(t, yf, True)      # первый интеграл фильтрованного сигнала
+    tfI, yfI = integrateSignal(t, yf, False)      # первый интеграл фильтрованного сигнала
     yfIf = signal.lfilter(b, a, yfI)             # фильтрованный первый интеграл фильтрованного сигнала
     
     # print('mean(yI)='+str(np.mean(yI))+', mean(yIf)='+str(np.mean(yIf))) 
-    td, yd = diffSignal(tI, yI)
+    _, yd = diffSignal(tI, yI)
     s = np.sum(np.std(y-alignLen(y, yd)))
     print(s)
 
-    tII, yII = integrateSignal(tI, yI, True)     # второй интеграл сигнала
-    yIIm = yII - np.mean(yII)                    # второй интеграл сигнала за вычетом средней
+    tII, yII = integrateSignal(tI, yI, False)     # второй интеграл сигнала
+    #yIIm = yII - np.mean(yII)                    # второй интеграл сигнала за вычетом средней
     yIIf = signal.lfilter(b, a, yII)             # фильтрованный второй интеграл сигнала
-    tfII, yfII = integrateSignal(tfI, yfI, True) # второй интеграл фильтрованного сигнала
+    _, yfII = integrateSignal(tfI, yfI, False) # второй интеграл фильтрованного сигнала
     yfIIf = signal.lfilter(b, a, yfII)           # фильтрованный второй интеграл фильтрованного сигнала
 
     fW, W = signal.welch(y, F)
-    fWf, Wf = signal.welch(yf, F)
+    _, Wf = signal.welch(yf, F)
 
     fWI, WI = signal.welch(yI, F)
-    fWIf, WIf = signal.welch(yIf, F)
-    fWfI, WfI = signal.welch(yfI, F)
-    fWfIf, WfIf = signal.welch(yfIf, F)
+    _, WIf = signal.welch(yIf, F)
+    _, WfI = signal.welch(yfI, F)
+    _, WfIf = signal.welch(yfIf, F)
 
     fWII, WII = signal.welch(yII, F)
-    fWIIf, WIIf = signal.welch(yIIf, F)
-    fWfII, WfII = signal.welch(yfII, F)
-    fWfIIf, WfIIf = signal.welch(yfIIf, F)
+    _, WIIf = signal.welch(yIIf, F)
+    _, WfII = signal.welch(yfII, F)
+    _, WfIIf = signal.welch(yfIIf, F)
 
-    N = len(tII)
-    spectrumII = rfft(yII)
-    spectrumIIf = rfft(yIIf)    
-    spectrumfII = rfft(yfII)    
+    #N = len(tII)
+    #spectrumII = rfft(yII)
+    #spectrumIIf = rfft(yIIf)    
+    #spectrumfII = rfft(yfII)    
 
-    freqFilter, spectrFilter = filterRFFT(rfftfreq(len(tII), 1./F), rfft(yII), 0.1)
+    #freqFilter, spectrFilter = filterRFFT(rfftfreq(len(tII), 1./F), rfft(yII), 0.1)
 
     makeFigure(filename, 
         [[t, [y, yf, yd], ['сигнал', 'фильтрованный сигнал', 'инт/диф сигнал']],
