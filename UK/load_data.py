@@ -6,6 +6,7 @@ import re
 import struct
 import xml.etree.ElementTree as et
 import datetime
+import os
 
 # Общий класс для работы с БД (соединение, чтение таблиц, фильтрация)
 class LoadData:
@@ -68,7 +69,7 @@ class LoadData:
     # Запись в файл
     def writeToFile(self, fileName, df, dfSheetName="dataframe", dfRows=None, pt=None, ptSheetName="pTable", ptRows=None):
         print("Запись в файл " + fileName)
-        with pd.ExcelWriter(fileName) as writer:
+        with pd.ExcelWriter(path=fileName, mode=('a' if os.path.exists(fileName) else 'w')) as writer:
             print("  " + dfSheetName + ("" if dfRows is None else " (" + str(dfRows) + " строк)") + "...")
             dfWrite = df if dfRows is None else df.head(dfRows)
             dfWrite.to_excel(writer, sheet_name=dfSheetName, index=False)
@@ -76,7 +77,7 @@ class LoadData:
                 print("  " + ptSheetName + ("" if ptRows is None else " (" + str(ptRows) + " строк)") + "...")
                 ptWrite = pt if ptRows is None else df.head(ptRows)
                 ptWrite.to_excel(writer, sheet_name=ptSheetName)
-        print("Записьм в файл завершена")
+        print("Запись в файл завершена")
 
 # Класс для логики, которая имеет специфику обработки базы UK
 class UKLoadData(LoadData):
@@ -117,6 +118,9 @@ class UKLoadData(LoadData):
 
 def readTables():
     ld = UKLoadData()
+    # Файл для разписи результатов
+    outFileName = "/home/drew/UK/pumps.xlsx"
+    if os.path.exists(outFileName): os.remove(outFileName)
     conn = ld.connect("192.168.36.58", "drew", "drew", "UralKalii05042019")
     # Выбираем данные таблиц
     trains = ld.readTable(conn, "dbo.Trains")
@@ -138,45 +142,68 @@ def readTables():
     # Надо из таблиц TrainMechanisms, TrainComponents, Mech_Models, Comp_Components
     #   извлечь XML и разобрать на новые таблицы связей с точками измерений
     trainMechanismsBindings = ld.createXmlDataFrame(trainMechanisms, "idTrainMech", "Bindings", "Points", ["CompIndex", "TrainIndex", "AdditionalData"])
-    trainComponentsBindings = ld.createXmlDataFrame(trainComponents, "idTrainComponent", "Bindings", "Points", ["CompIndex", "TrainIndex", "AdditionalData"])
-    trainComponentsBindings.columns = ["idTrainComponent", "CompIndex", "idPoint", "AdditionalData"]
-    trainComponentsBindings = trainComponentsBindings.astype(int)
+    trainComponentsBindingsPoints = ld.createXmlDataFrame(trainComponents, "idTrainComponent", "Bindings", "Points", ["CompIndex", "TrainIndex", "AdditionalData"])
+    trainComponentsBindingsPoints.columns = ["idTrainComponent", "CompIndex", "idPoint", "AdditionalData"]
+    trainComponentsBindingsPoints = trainComponentsBindingsPoints.astype(int)
+    trainComponentsBindingsFaultFrequencies = ld.createXmlDataFrame(trainComponents, "idTrainComponent", "Bindings", "FaultFreqValues", ["CompIndex", "Value", "Value2", "Value3"])
+    trainComponentsBindingsFaultFrequencies.columns = ["idTrainComponent", "CompIndex", "Value", "Value2", "Value3"]
+    trainComponentsBindingsFaultFrequencies = trainComponentsBindingsFaultFrequencies.astype({"idTrainComponent" : int, "CompIndex" : int})
     mechModelsPoints = ld.createXmlDataFrame(mechModels, "idModel", "Points", "Points", ["Index", "Name", "Description"])
     compComponentsPoints = ld.createXmlDataFrame(compComponents, "idComponent", "Points", "Points", ["Index", "Name", "Description", "Direction"])
     compComponentsPoints.columns = ["idComponent", "CompIndex", "Name", "Description", "Direction"]
     compComponentsPoints = compComponentsPoints.astype({"idComponent" : int, "CompIndex" : int, "Direction" : int})
+    compComponentsFaultFrequencies = ld.createXmlDataFrame(compComponents, "idComponent", "FaultFrequencies", "FaultFrequencies", ["Name", "Description", "Code", "Value", "CoefValue2", "CoefValue3"])
+    compComponentsFaultFrequencies.columns = ["idComponent", "Name", "Description", "Code", "Value", "CoefValue2", "CoefValue3"]
+    compComponentsFaultFrequencies = compComponentsFaultFrequencies.astype({"idComponent" : int, "Code" : int})
     # print(trainMechanismsBindings.head(10))
-    # print(trainComponentsBindings.head(10))
+    # print(trainComponentsBindingsPoints.head(10))
     # print(mechModelsPoints.head(10))
     # print(compComponentsPoints.head(10))
     # Нужные для соединения колонки
     colDict = dict()
-    colDict["data"]                     = ["idMeasure", "Date", "DynamicData"]
-    colDict["measures"]                 = ["idMeasure", "idPoint", "Name", "Description"]
-    colDict["points"]                   = ["idPoint", "idTrain", "Name", "Description", "Direction"]
-    colDict["trainComponentsBindings"]  = ["idTrainComponent", "CompIndex", "idPoint", "AdditionalData"]
-    colDict["compComponentsPoints"]     = ["idComponent", "CompIndex", "Name", "Description", "Direction"]
-    colDict["trainComponents"]          = ["idTrainComponent", "idTrain", "idCompComponent", "Name", "Description"]
-    colDict["trains"]                   = ["idTrain", "Name", "Description"]
+    colDict["data"]                           = ["idMeasure", "Date", "DynamicData"]
+    colDict["measures"]                       = ["idMeasure", "idPoint", "Name", "Description"]
+    colDict["points"]                         = ["idPoint", "idTrain", "Name", "Description", "Direction"]
+    colDict["trainComponentsBindingsPoints"]  = ["idTrainComponent", "CompIndex", "idPoint", "AdditionalData"]
+    colDict["trainComponentsBindingsFaultFrequencies"] = ["idTrainComponent", "CompIndex", "Value", "Value2", "Value3"]
+    colDict["compComponentsPoints"]           = ["idComponent", "CompIndex", "Name", "Description", "Direction"]
+    colDict["compComponentsFaultFrequencies"] = ["idComponent", "Name", "Description", "Code", "Value", "CoefValue2", "CoefValue3"]
+    colDict["trainComponents"]                = ["idTrainComponent", "idTrain", "idCompComponent", "Name", "Description"]
+    colDict["trains"]                         = ["idTrain", "Name", "Description"]
     # Оставляем только часть колонок и переименовываем их
     dataCols = ld.severalColumns(data, colDict, "data")
     measuresCols = ld.severalColumns(measures, colDict, "measures")
     pointsCols = ld.severalColumns(points, colDict, "points")
-    trainComponentsBindingsCols = ld.severalColumns(trainComponentsBindings, colDict, "trainComponentsBindings")
+    trainComponentsBindingsPointsCols = ld.severalColumns(trainComponentsBindingsPoints, colDict, "trainComponentsBindingsPoints")
+    trainComponentsBindingsFaultFrequenciesCols = ld.severalColumns(trainComponentsBindingsFaultFrequencies, colDict, "trainComponentsBindingsFaultFrequencies")
+    print(trainComponentsBindingsFaultFrequenciesCols.head(10))
     compComponentsPointsCols = ld.severalColumns(compComponentsPoints, colDict, "compComponentsPoints")
+    compComponentsFaultFrequenciesCols = ld.severalColumns(compComponentsFaultFrequencies, colDict, "compComponentsFaultFrequencies")
+    print(compComponentsFaultFrequenciesCols.head(10))
     trainComponentsCols = ld.severalColumns(trainComponents, colDict, "trainComponents")
     trainsCols = ld.severalColumns(trains, colDict, "trains")
-    del data, measures, points, trainComponentsBindings, compComponentsPoints, trainComponents, trains
+    # Промежуточный вывод таблиц, если необходимо
+    ld.writeToFile(outFileName, compComponentsFaultFrequenciesCols, "compComponentsFaultFrequencies", 2000)
+    ld.writeToFile(outFileName, trainComponentsBindingsFaultFrequenciesCols, "trainComponentsBindingsFaultFrequencies", 2000)
+    del data, measures, points, trainComponentsBindingsPoints, trainComponentsBindingsFaultFrequencies, compComponentsPoints, compComponentsFaultFrequencies, trainComponents, trains
     # Строим соединение таблиц
     trainsAndComponents = pd.merge(trainsCols, trainComponentsCols, how="left", left_on="trains_idTrain", right_on="trainComponents_idTrain")
-    trainsAndComponentsWithBindings = pd.merge(trainsAndComponents, trainComponentsBindingsCols, how="left", left_on="trainComponents_idTrainComponent", right_on="trainComponentsBindings_idTrainComponent")
-    trainsAndComponentsWithBindingsAndPoints = pd.merge(trainsAndComponentsWithBindings, compComponentsPointsCols, how="left", left_on=["trainComponents_idCompComponent", "trainComponentsBindings_CompIndex"], right_on=["compComponentsPoints_idComponent", "compComponentsPoints_CompIndex"])
+    trainsAndComponentsWithBindings = pd.merge(trainsAndComponents, trainComponentsBindingsPointsCols, how="left", left_on="trainComponents_idTrainComponent", right_on="trainComponentsBindingsPoints_idTrainComponent")
+    trainsAndComponentsWithBindingsAndPoints = pd.merge(trainsAndComponentsWithBindings, compComponentsPointsCols, how="left", left_on=["trainComponents_idCompComponent", "trainComponentsBindingsPoints_CompIndex"], right_on=["compComponentsPoints_idComponent", "compComponentsPoints_CompIndex"])
     dataAndMesures = pd.merge(dataCols, measuresCols, how="left", left_on="data_idMeasure", right_on="measures_idMeasure")
     dataMesuresPoints = pd.merge(dataAndMesures, pointsCols, how="left", left_on="measures_idPoint", right_on="points_idPoint")
-    dataMesuresPointsComponentsPoints = pd.merge(dataMesuresPoints, trainsAndComponentsWithBindingsAndPoints, how="left", left_on=["points_idPoint", "points_Direction"], right_on=["trainComponentsBindings_idPoint", "compComponentsPoints_Direction"])
+    dataMesuresPointsComponentsPoints = pd.merge(dataMesuresPoints, trainsAndComponentsWithBindingsAndPoints, how="left", left_on=["points_idPoint", "points_Direction"], right_on=["trainComponentsBindingsPoints_idPoint", "compComponentsPoints_Direction"])
     del trainsAndComponents, trainsAndComponentsWithBindings, trainsAndComponentsWithBindingsAndPoints, dataAndMesures, dataMesuresPoints
-    # Группируем, чтобы получить временные ряды
+    # Поправим типы колонок
     
+    # Группируем, чтобы получить временные ряды
+    timeSeries = dict()
+    gbDf = ld.filterByStrOr(dataMesuresPointsComponentsPoints, "trains_Name", ["5.5-1G11"])
+    groupByColumns = ["trains_idTrain", "trainComponents_idTrainComponent", "points_idPoint", "points_Direction",
+                      "measures_idMeasure", "measures_Name"]
+    tsColumns = ["data_Date", "data_DynamicData"]
+    for key, groupDf in gbDf.groupby(groupByColumns):
+        timeSeries[key] = groupDf[tsColumns]
     # Изменяем колонки, чтобы сделать хорошую сводку
     dataMesuresPointsComponentsPoints["trainComponents_Name_Description"] = dataMesuresPointsComponentsPoints["trainComponents_Name"] + " " + dataMesuresPointsComponentsPoints["trainComponents_Description"]
     dataMesuresPointsComponentsPoints["data_Date"] = dataMesuresPointsComponentsPoints["data_Date"].apply(ld.parseDate)
@@ -190,57 +217,6 @@ def readTables():
     pTable = ld.doPivotTable(dataMesuresPointsComponentsPoints, pivotIndexColumns, pivotValuesColumns, "trains_Name", ["5.5-1G11"]) # "trains_Description", ["CNH-B"]
     # Запись в файл
     dataMesuresPointsComponentsPoints = dataMesuresPointsComponentsPoints.drop(["data_DynamicData"], axis=1)
-    ld.writeToFile("/home/drew/UK/pumps.xlsx", dataMesuresPointsComponentsPoints, "5.5-1G11", 2000, pTable)
-    # dfRes_1 = pivotDf
-    # print("Запись в файл...")
-    # # dfRes_1 = dfRes_1.drop(["data_DynamicData"], axis=1)
-    # with pd.ExcelWriter("/home/drew/UK/pumps.xlsx") as writer:
-    #     # dfRes_1.head(2000).to_excel(writer, sheet_name="dfRes_1", index=False)
-    #     # pTable.head(2000).to_excel(writer, sheet_name="pTable")
-    #     # dfRes_1.head(10000).to_excel(writer, sheet_name="dfRes_1", index=False)
-    #     dfRes_1.to_excel(writer, sheet_name="5.5-1G11", index=False)
-    #     pTable.to_excel(writer, sheet_name="pTable")
-    #     writer.save()
-    # print("Готово")
-
-    #colNames += list(map(lambda el: "data" + str(el), colDict["data"]))
-    # with pd.merge(data[["idMeasure", "Date", "DynamicData"]], measures[["idMeasure", "idPoint", "Name", "Description"]], on="idMeasure", how="left") as dataMeasures:
-    #     colNames += list(map(lambda el: "data"+str(el), colDict["data"]))
-    #     dataMeasures.columns = ["idMeasure", "Date", "DynamicData", "idMeasure", "Point", "Name", "Description"]
-
-    # # Фильтруем таблицы
-    # pumps = ld.filterByStrOr(trains, "Description", ["CNH-B"])
-    # pointsTochka = ld.filterByStrOr(points, "Name", ["Точка 1"])
-    # pointsTochka = ld.filterByStrOr(pointsTochka, "Direction", ["1"])
-    # measuresSPms2 = ld.filterByStrOr(measures, "Name", ["СП м/с2"])
-    # # Оставляем только часть колонок
-    # pumpsShort = pumps.filter(["idTrain", "Name", "Description"])
-    # pointsShort = pointsTochka.filter(["idPoint", "idTrain", "Name", "Direction"]) # "Description"
-    # measuresShort = measuresSPms2.filter(["idMeasure", "idPoint", "Name"]) # "Description", "Note", "IsCritical"
-    # dataShort = data.filter(["idMeasure", "Date", "Value1", "Value2", "DynamicData"])
-    # # Соединяем таблицы в одну
-    # pumpsPoints = pd.merge(pumpsShort, pointsShort, on="idTrain", how="left")
-    # pumpsPointsMeasures = pd.merge(pumpsPoints, measuresShort, on="idPoint", how="left")
-    # pumpsPointsMeasuresData = pd.merge(pumpsPointsMeasures, dataShort, on="idMeasure", how="left")
-    # # Только данные насоса 420-1
-    # p420_1 = ld.filterByStrOr(pumpsPointsMeasuresData, "Name_x", ["420-1"])
-    # # Обработка данных измерений
-    # p420_1["DynamicDataArray"] = p420_1["DynamicData"].apply(ld.toFloatArray)
-    # p420_1_data = ld.createArrayDataFrame(p420_1, ["idMeasure", "Name", "Date"], "DynamicDataArray")
-    # p420_1["DynamicDataArrayLen"] = p420_1["DynamicDataArray"].apply(len).astype("int")
-
-    # pd.options.display.max_colwidth = 130
-    # print(p420_1.head()[["idMeasure", "Name", "Date", "DynamicDataArray"]])
-
-    # print("Запись в файл...")
-    # p420_1 = p420_1.drop(["DynamicData"], axis=1)
-    # #p420_1.to_csv("~/Share/p420_1.csv", index=False)
-    # #p420_1_data.to_csv("~/Share/p420_1_data.csv", index=False)
-    # with pd.ExcelWriter("/home/drew/UK/pumps.xlsx") as writer:
-    #     pumpsShort.to_excel(writer, sheet_name="pumpsShort", index=False)
-    #     p420_1.to_excel(writer, sheet_name="p420_1", index=False)
-    #     p420_1_data.to_excel(writer, sheet_name="p420_1_data", index=False)
-    #     writer.save()
-    # print("Готово")
+    ld.writeToFile(outFileName, dataMesuresPointsComponentsPoints, "5.5-1G11", None, pTable)
 
 readTables()
