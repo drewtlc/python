@@ -3,6 +3,9 @@
 import warnings
 warnings.simplefilter("ignore")
 
+import matplotlib
+matplotlib.use('Agg')
+
 import os
 import numpy as np
 import pandas as pd
@@ -17,7 +20,8 @@ import shutil
 qualities = {0 : 'АНТРОПОМЕТРИЯ', 1 : 'ВЕСТ.УСТ-ТЬ', 2 : 'ГИБКОСТЬ', 3 : 'СКОРОСТЬ', 4 : 'СИЛА', 5 : 'СК-СИЛ', 6 : 'РАБОТОСП'}
 qualitiesReadable = {1 : 'Вестибулярная устойчивость', 2 : 'Гибкость', 3 : 'Скорость', 4 : 'Сила', 5 : 'Скоростно-силовые', 6 : 'Физ. работоспособность'}
 invertedOrder = {1: [2,3,4], 2: [2], 3 : [1,2], 6 : [1]}
-idCol    = '№ п/п'
+idCol    = 'Num' 
+nppCol   = '№ п/п'
 sexCol   = 'Пол'
 ageCol   = 'Хрон. возр.'
 sportCol = 'Вид спорта'
@@ -28,8 +32,10 @@ qualitySuffix = '_quality'
 markSuffix = '_mark'
 totalMarkName = 'total' + markSuffix
 totalGroupCol = 'total_group'
+fioCols = ['Фамилия', 'Имя', 'Отчество']
 
-PATH = '/home/drew/Moskomsport/'
+#PATH = 'drew@192.168.36.65:/home/drew/Moskomsport/'
+PATH = '/home/drew/3_MKS_data/'
 
 # Get time
 def now():
@@ -70,7 +76,7 @@ def saveDf(df, path, filename = 'df.csv'):
     return
 
 def fromXlsToPrepared(path):
-    xlsPath = os.path.join(PATH, 'base2019_lite2.xlsx')
+    xlsPath = os.path.join(PATH, 'base2019_lite3.xlsx')
 
     df = pd.read_excel(xlsPath, sheet_name=None)
     dfList = [df[qualities[k]] for k in qualities.keys()]
@@ -80,10 +86,13 @@ def fromXlsToPrepared(path):
     #   df = df.iloc[:100,:]
 
     dfMainFull = dfList[0]
-    dfMain = dfMainFull[[idCol, sexCol, ageCol, sportCol, groupCol]]
+    dfMain = dfMainFull[[idCol, nppCol] + fioCols + [sexCol, ageCol, sportCol, groupCol]]
     qIndexes = sorted(list(set(qualities.keys()).difference([0])))
     for index in qIndexes:
-        df = dfList[index]
+        df = dfList[index] # Проходим по всем листам с измеренными параметрами
+        for colToRemove in [nppCol] + fioCols: # Исключаем колонки с ФИО и номером по порядку
+            if colToRemove in df.columns:
+                df.drop(colToRemove, axis=1, inplace=True)
         addCols = [idCol]
         for colIndex in range(1,len(df.columns)):
             colName = str(df.columns[colIndex])
@@ -94,7 +103,7 @@ def fromXlsToPrepared(path):
         dfMain = dfMain.join(adAdd.set_index(idCol), on=idCol)
 
     clearCols = [col for col in dfMain.columns if col.endswith(clearSuffix)==True]
-    invertedOrderSet = set();
+    invertedOrderSet = set()
     for k in invertedOrder.keys():
         for l in invertedOrder[k]:
             invertedOrderSet.add((int(k),int(l)))
@@ -133,12 +142,13 @@ def fromXlsToPrepared(path):
     dfMain[totalGroupCol] = dfMain[totalMarkName].apply(lambda v: 'очень слабо' if v<=2.25 else 'слабо' if v<=3 else 'нормально' if v<=3.75 else 'сильно').astype(str)
 
     saveDf(dfMain, path, 'dfMain.csv')
-    #print(dfMain.head(15))
-    #print(dfMain.shape)
+    print(dfMain.head(15)) # to comment
+    print(dfMain.shape)    # to comment
     return
 
 def readPrepared(path):
-    dfMain = pd.read_csv(os.path.join(path, 'dfMain.csv'))
+    filepath = os.path.join(path, 'dfMain.csv')
+    dfMain = pd.read_csv(filepath)
     #print(dfMain.head(15))
     #print(dfMain.shape)
     return dfMain
@@ -232,7 +242,7 @@ def buildBoxes(df, colList, path):
     
     return
 
-#fromXlsToPrepared(PATH)
+fromXlsToPrepared(PATH) # to comment
 
 dfMain = readPrepared(PATH) # read from dfMain.csv
 dfMain[sportCol] = dfMain[sportCol].astype(str)
