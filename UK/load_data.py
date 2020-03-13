@@ -23,8 +23,6 @@ class LoadData:
     # Чтение таблицы из БД (через выполнение запроса)
     def readTable(self, conn, tableName, conditions=""):
         sql = "select * from " + tableName + ("" if conditions == "" else " where " + conditions)
-        # if conditions != "":
-        #     sql = sql + " where " + conditions
         return self.readSql(conn, sql)
 
     # Наложение фильтра по вхождению строк в значение колонки. Истина, если есть вхождение хотя бы одной строки.
@@ -85,7 +83,7 @@ class UKLoadData(LoadData):
     #   idField     - имя поля-ключа из td
     #   xmlField    - имя поля с XML-данными
     #   arrayTag    - имя тэга, который содержит множество тэгов-строк, из которых извлекаются данные
-    #   attributes  - список атрибутов тэга-строки, для извлечения значений
+    #   attributes  - список атрибутов тэга-строки для извлечения значений
     def createXmlDataFrame(self, td, idField, xmlField, arrayTag, attributes):
         data = list()
         labels = [idField] + attributes
@@ -119,46 +117,64 @@ class UKLoadData(LoadData):
 def readTables():
     ld = UKLoadData()
     # Файл для разписи результатов
-    outFileName = "/home/drew/UK/pumps.xlsx"
+    outFileName = "/home/drew/2_UK_data/pumps.xlsx"
     if os.path.exists(outFileName): os.remove(outFileName)
-    conn = ld.connect("192.168.36.58", "drew", "drew", "UralKalii05042019")
+    conn = ld.connect("192.168.36.90", "drew", "drew", "UralKalii05042019")
     # Выбираем данные таблиц
-    trains = ld.readTable(conn, "dbo.Trains")
-    trainMechanisms = ld.readTable(conn, "dbo.TrainMechanisms")
-    trainComponents = ld.readTable(conn, "dbo.TrainComponents")
-    mechModels = ld.readTable(conn, "dbo.Mech_Models")
-    compComponents = ld.readTable(conn, "dbo.Comp_Components")
-    points = ld.readTable(conn, "dbo.Points")
-    measures = ld.readTable(conn, "dbo.Measures")
+    trains = ld.readTable(conn, "dbo.Trains")                    # агрегаты (например, насосы)
+    # trainMechanisms пока не используется
+    #trainMechanisms = ld.readTable(conn, "dbo.TrainMechanisms") # механизмы агрегата (например, для насосов это ЭД и сам насос)
+    trainComponents = ld.readTable(conn, "dbo.TrainComponents")  # компоненты конкретного агрегата (например, Статор А э/д, Якорь А э/д, Ротор э/д, Подшипник №1, Подшипник №2)
+    # mechModels пока не используется
+    #mechModels = ld.readTable(conn, "dbo.Mech_Models")          # модели механизмов (например, для насоса в поле Keyphasors хранится параметр "Частота вращения насоса"; в поле StaticParameter - "Число лопаток рабочего колеса", Units="шт", ValueType="8"; в поле Points - Name="1", Description="Коренной подшипник насоса")
+    compComponents = ld.readTable(conn, "dbo.Comp_Components")   # общее описание компонента (в том числе Points, FaultFrequencies) (например, "Подшипник качения")
+    points = ld.readTable(conn, "dbo.Points")                    # точки, в которых проходят измерения
+    measures = ld.readTable(conn, "dbo.Measures")                # измерения
     # Все данные измерений
-    data = ld.readTable(conn, "dbo.Data")
-    #   Только самые новые из измерений
-    #   data = ld.readSql(conn, "select d.* from dbo.Data d \
-    #                             left join (select [idMeasure], max([Date]) as lastDate from dbo.Data group by [idMeasure]) ld on (d.[idMeasure]=ld.[idMeasure] and d.[Date]=ld.[lastDate]) \
-    #                         where ld.[idMeasure] is not null")
-    #   Обработка таблиц - нужно много ресурсов
+    data = ld.readTable(conn, "dbo.Data")                        # данные измерений
+    # Только самые новые из измерений
+    #data = ld.readSql(conn, "select d.* from dbo.Data d \
+    #                           left join (select [idMeasure], max([Date]) as lastDate from dbo.Data group by [idMeasure]) ld on (d.[idMeasure]=ld.[idMeasure] and d.[Date]=ld.[lastDate]) \
+    #                           where ld.[idMeasure] is not null")
+    
+    # Обработка таблиц - нужно много ресурсов
     #   data["DynamicDataArray"] = data["DynamicData"].apply(ld.toFloatArray)
     #   data["DynamicDataArrayLen"] = data["DynamicDataArray"].apply(len).to_int()
+
     # Надо из таблиц TrainMechanisms, TrainComponents, Mech_Models, Comp_Components
     #   извлечь XML и разобрать на новые таблицы связей с точками измерений
-    trainMechanismsBindings = ld.createXmlDataFrame(trainMechanisms, "idTrainMech", "Bindings", "Points", ["CompIndex", "TrainIndex", "AdditionalData"])
+
+    # trainMechanismsBindings пока не используется
+    #trainMechanismsBindings = ld.createXmlDataFrame(trainMechanisms, "idTrainMech", "Bindings", "Points", ["CompIndex", "TrainIndex", "AdditionalData"])
+    
+    # связь компонентов конкретного агрегата и точек измерений (CompIndex="1" TrainIndex="41084")
     trainComponentsBindingsPoints = ld.createXmlDataFrame(trainComponents, "idTrainComponent", "Bindings", "Points", ["CompIndex", "TrainIndex", "AdditionalData"])
     trainComponentsBindingsPoints.columns = ["idTrainComponent", "CompIndex", "idPoint", "AdditionalData"]
     trainComponentsBindingsPoints = trainComponentsBindingsPoints.astype(int)
+
+    # связь компонентов конкретного агрегата и частот отказа (CompIndex="1" Value="4.935600" Value2="1.000000" Value3="1.000000")
     trainComponentsBindingsFaultFrequencies = ld.createXmlDataFrame(trainComponents, "idTrainComponent", "Bindings", "FaultFreqValues", ["CompIndex", "Value", "Value2", "Value3"])
     trainComponentsBindingsFaultFrequencies.columns = ["idTrainComponent", "CompIndex", "Value", "Value2", "Value3"]
     trainComponentsBindingsFaultFrequencies = trainComponentsBindingsFaultFrequencies.astype({"idTrainComponent" : int, "CompIndex" : int})
-    mechModelsPoints = ld.createXmlDataFrame(mechModels, "idModel", "Points", "Points", ["Index", "Name", "Description"])
+    
+    # mechModelsPoints пока не используется
+    #mechModelsPoints = ld.createXmlDataFrame(mechModels, "idModel", "Points", "Points", ["Index", "Name", "Description"])
+    
+    # общее описание компонента и точек его измерения (Index="1" Name="Точка" Description="Точка установки подшипника" Direction="1" PickupType="1" Units="0")
     compComponentsPoints = ld.createXmlDataFrame(compComponents, "idComponent", "Points", "Points", ["Index", "Name", "Description", "Direction"])
     compComponentsPoints.columns = ["idComponent", "CompIndex", "Name", "Description", "Direction"]
     compComponentsPoints = compComponentsPoints.astype({"idComponent" : int, "CompIndex" : int, "Direction" : int})
+    
+    # общее описание компонента и частот отказа (Name="Fвн" Description="Частота внутреннего кольца" Code="1" Type="1" HarmType="0" Length="1" KeyIndex="1" FreqCode="-1" ParamIndex="-1" ParamIndex2="-1" ParamIndex3="-1" Value="1.000000" CoefValue2="1.000000" CoefValue3="1.000000" Add2KeyIndex="-1" Add2FreqCode="-1" Add2ParamIndex1="-1" Add2ParamIndex2="-1" Add2ParamIndex3="-1" Add2CoefValue1="0.000000" Add2CoefValue2="1.000000" Add2CoefValue3="1.000000" Length2="1" KeyIndex2="-1" FreqCode2="-1" MainHarm="1" Visible="1")
     compComponentsFaultFrequencies = ld.createXmlDataFrame(compComponents, "idComponent", "FaultFrequencies", "FaultFrequencies", ["Name", "Description", "Code", "Value", "CoefValue2", "CoefValue3"])
     compComponentsFaultFrequencies.columns = ["idComponent", "Name", "Description", "Code", "Value", "CoefValue2", "CoefValue3"]
     compComponentsFaultFrequencies = compComponentsFaultFrequencies.astype({"idComponent" : int, "Code" : int})
+
     # print(trainMechanismsBindings.head(10))
     # print(trainComponentsBindingsPoints.head(10))
     # print(mechModelsPoints.head(10))
     # print(compComponentsPoints.head(10))
+
     # Нужные для соединения колонки
     colDict = dict()
     colDict["data"]                           = ["idMeasure", "Date", "DynamicData"]
@@ -170,6 +186,7 @@ def readTables():
     colDict["compComponentsFaultFrequencies"] = ["idComponent", "Name", "Description", "Code", "Value", "CoefValue2", "CoefValue3"]
     colDict["trainComponents"]                = ["idTrainComponent", "idTrain", "idCompComponent", "Name", "Description"]
     colDict["trains"]                         = ["idTrain", "Name", "Description"]
+    
     # Оставляем только часть колонок и переименовываем их
     dataCols = ld.severalColumns(data, colDict, "data")
     measuresCols = ld.severalColumns(measures, colDict, "measures")
@@ -182,10 +199,12 @@ def readTables():
     print(compComponentsFaultFrequenciesCols.head(10))
     trainComponentsCols = ld.severalColumns(trainComponents, colDict, "trainComponents")
     trainsCols = ld.severalColumns(trains, colDict, "trains")
+    
     # Промежуточный вывод таблиц, если необходимо
-    ld.writeToFile(outFileName, compComponentsFaultFrequenciesCols, "compComponentsFaultFrequencies", 2000)
-    ld.writeToFile(outFileName, trainComponentsBindingsFaultFrequenciesCols, "trainComponentsBindingsFaultFrequencies", 2000)
+    #ld.writeToFile(outFileName, compComponentsFaultFrequenciesCols, "compComponentsFaultFrequencies", 2000)
+    #ld.writeToFile(outFileName, trainComponentsBindingsFaultFrequenciesCols, "trainComponentsBindingsFaultFrequencies", 2000)
     del data, measures, points, trainComponentsBindingsPoints, trainComponentsBindingsFaultFrequencies, compComponentsPoints, compComponentsFaultFrequencies, trainComponents, trains
+    
     # Строим соединение таблиц
     trainsAndComponents = pd.merge(trainsCols, trainComponentsCols, how="left", left_on="trains_idTrain", right_on="trainComponents_idTrain")
     trainsAndComponentsWithBindings = pd.merge(trainsAndComponents, trainComponentsBindingsPointsCols, how="left", left_on="trainComponents_idTrainComponent", right_on="trainComponentsBindingsPoints_idTrainComponent")
@@ -194,19 +213,26 @@ def readTables():
     dataMesuresPoints = pd.merge(dataAndMesures, pointsCols, how="left", left_on="measures_idPoint", right_on="points_idPoint")
     dataMesuresPointsComponentsPoints = pd.merge(dataMesuresPoints, trainsAndComponentsWithBindingsAndPoints, how="left", left_on=["points_idPoint", "points_Direction"], right_on=["trainComponentsBindingsPoints_idPoint", "compComponentsPoints_Direction"])
     del trainsAndComponents, trainsAndComponentsWithBindings, trainsAndComponentsWithBindingsAndPoints, dataAndMesures, dataMesuresPoints
+    
     # Поправим типы колонок
     
     # Группируем, чтобы получить временные ряды
     timeSeries = dict()
     gbDf = ld.filterByStrOr(dataMesuresPointsComponentsPoints, "trains_Name", ["5.5-1G11"])
-    groupByColumns = ["trains_idTrain", "trainComponents_idTrainComponent", "points_idPoint", "points_Direction",
-                      "measures_idMeasure", "measures_Name"]
+    # Группировка: агрегат, компонент, точка, направление, измерение, название измерения
+    groupByColumns = ["trains_idTrain", "trainComponents_idTrainComponent", "points_idPoint", "points_Direction", "measures_idMeasure", "measures_Name"]
     tsColumns = ["data_Date", "data_DynamicData"]
     for key, groupDf in gbDf.groupby(groupByColumns):
-        timeSeries[key] = groupDf[tsColumns]
+        oneSeriesDf = groupDf[tsColumns]
+        oneSeriesDf["data_DynamicDataArray"] = oneSeriesDf["data_DynamicData"].apply(ld.toFloatArray)
+        timeSeries[key] = oneSeriesDf
+        print(key)
+        print(timeSeries[key].head(10))
+
     # Изменяем колонки, чтобы сделать хорошую сводку
     dataMesuresPointsComponentsPoints["trainComponents_Name_Description"] = dataMesuresPointsComponentsPoints["trainComponents_Name"] + " " + dataMesuresPointsComponentsPoints["trainComponents_Description"]
     dataMesuresPointsComponentsPoints["data_Date"] = dataMesuresPointsComponentsPoints["data_Date"].apply(ld.parseDate)
+    
     # Делаем сводку
     pivotIndexColumns = ["trains_idTrain", "trains_Name", "trains_Description", 
                          "trainComponents_idCompComponent", "trainComponents_idTrainComponent", "trainComponents_Name_Description",
@@ -215,8 +241,9 @@ def readTables():
                          "measures_idMeasure", "measures_Name", "measures_Description"]
     pivotValuesColumns = ["data_Date"]
     pTable = ld.doPivotTable(dataMesuresPointsComponentsPoints, pivotIndexColumns, pivotValuesColumns, "trains_Name", ["5.5-1G11"]) # "trains_Description", ["CNH-B"]
+    
     # Запись в файл
-    dataMesuresPointsComponentsPoints = dataMesuresPointsComponentsPoints.drop(["data_DynamicData"], axis=1)
-    ld.writeToFile(outFileName, dataMesuresPointsComponentsPoints, "5.5-1G11", None, pTable)
+    #dataMesuresPointsComponentsPoints = dataMesuresPointsComponentsPoints.drop(["data_DynamicData"], axis=1)
+    #ld.writeToFile(outFileName, dataMesuresPointsComponentsPoints, "5.5-1G11", None, pTable)
 
 readTables()
