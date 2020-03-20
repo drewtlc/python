@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 import pymssql as ms
 import pandas as pd
 import functools
@@ -7,6 +10,9 @@ import struct
 import xml.etree.ElementTree as et
 import datetime
 import os
+import time
+import ast
+import numpy as np
 
 # Общий класс для работы с БД (соединение, чтение таблиц, фильтрация)
 class LoadData:
@@ -27,23 +33,37 @@ class LoadData:
         return dataframe
 
     # Чтение таблицы из БД (через выполнение запроса)
-    def readTable(self, tableName, conditions="", limit=0):
-        sql = "select " + ("" if limit <= 0 else " limit " + limit) + " * from " + tableName + ("" if conditions == "" else " where " + conditions)
+    def readSqlTable(self, tableName, conditions="", limit=0):
+        sql = "select " + ("" if limit <= 0 else "top " + str(limit)) + " * from " + tableName + ("" if conditions == "" else " where " + conditions)
         return self.readSql(sql)
-    
+
+    # Чтение таблицы из CSV файла
+    def readCsvTable(self, fileName, converterCSV = None):
+        df = pd.read_csv(fileName)
+        if converterCSV != None:
+            for col, func in converterCSV.items():
+                df[col] = df[col].apply(func)
+        return df
+
+    # Запись таблицы в CSV файл
+    def writeCsvTable(self, df, tableName):
+        fileName = os.path.join(os.path.dirname(os.path.abspath(__file__)), tableName + ".csv")
+        if os.path.exists(fileName): os.remove(fileName)
+        df.to_csv(fileName, index=False)
+        return
+
     # Чтение данных из файла, а если его нет, то из таблицы
-    def readTableBuffered(self, tableName, funcSQL = None, funcCSV = None):
+    def readSqlTableBuffered(self, tableName, processFunc = None, converterCSV = None):
         fileName = os.path.join(os.path.dirname(os.path.abspath(__file__)), tableName + ".csv")
         df = pd.DataFrame()
         if os.path.exists(fileName):
-            df = pd.read_csv(fileName)
-            if funcCSV != None:
-                df = funcCSV(df)
+            df = self.readCsvTable(fileName, converterCSV)
         else:
-            df = self.readTable(tableName)
-            if funcSQL != None:
-                df = funcSQL(df)
-            df.to_csv(fileName, index=False)
+            df = self.readSqlTable(tableName)
+            #df.to_csv(fileName, index=False)
+            self.writeCsvTable(df, tableName)
+        if processFunc != None:
+            df = processFunc(df)
         return df
 
     # Наложение фильтра по значению колонки
@@ -61,7 +81,7 @@ class LoadData:
     # Перевод бинарного поля в массив чисел float. На число выделяется 4 байта, которые меняют свой порядок на обратный перед переводом во float.
     def toFloatArray(self, binData):
         result=[]
-        if type(binData)==bytes:
+        if (binData != None) & (type(binData) == bytes):
             blockSize = 4            
             for i in range(0,len(binData),blockSize):
                 block = binData[i:i+blockSize]
@@ -69,21 +89,12 @@ class LoadData:
                 result.append(fl[0])
         return result
 
-    # Перевод строки в массив чисел float. Нужно при чтении массива из текстового файла
-    def toFloatList(self, listInStr):
-        result=[]
-        listInStr = listInStr.replace("[","")
-        listInStr = listInStr.replace("]","")
-        listInStr = listInStr.replace(" ","")
-        if listInStr != "":
-            result = list(map(lambda x: float(x), listInStr.split(",")))
-        return result
-
-    # Расчет для массива чисел float суммы абсолютных значений
-    def calcSumAbs(self, list):
-        result=0
-        for item in list:
-            result += abs(item)
+    # Перевод текстового представления данных в сами данные (бинарные данные, списки, словари и т.д.)
+    def evalStr(self, strVal):
+        try:
+            result = ast.literal_eval(strVal)
+        except:
+            result = None
         return result
 
     # Построение DataFrame по списку колонок keyColumns
@@ -91,7 +102,7 @@ class LoadData:
         data = dict()
         maxlen = 0
         for _, row in df.iterrows():
-            key = reduce(lambda s,k: (s if (s=="") else s+"_") + str(row[k]), keyColumns, "")
+            key = reduce(lambda s, k: (s if (s == "") else s + "_") + str(row[k]), keyColumns, "")
             data[key]=row[arrayColumn]
             maxlen = max(maxlen, len(row[arrayColumn]))
         for key, val in data.items():
@@ -159,40 +170,55 @@ class UKLoadData(LoadData):
         pTable = pd.pivot_table(pivotDf, index=pivotIndexColumns, values=pivotValuesColumns, aggfunc=[len,min,max])
         return pTable
 
-    def dataSQLProcessing(self, dataDf):
+    # Обработка таблицы с данными: бинарные данные переводятся в список вещественных чисел (нужно много ресурсов)
+    def dataProcessing(self, dataDf, binColName = "DynamicData"):
         result = dataDf
-        result["DynamicDataArray"] = result["DynamicData"].apply(self.toFloatArray)
-        result["DynamicDataArrayLen"] = result["DynamicDataArray"].apply(len)
-        result["DynamicDataArrayLen"] = result["DynamicDataArrayLen"].astype('int')
-        result.drop(['DynamicData'], axis=1, inplace=True)
+        result[binColName + "Array"] = result[binColName].apply(self.toFloatArray)
+        result[binColName + "Array" + "Len"] = result[binColName + "Array"].apply(len)
+        result[binColName + "Array" + "Len"] = result[binColName + "Array" + "Len"].astype('int')
+        result.drop([binColName], axis=1, inplace=True)
         return result
 
-    def dataCSVProcessing(self, dataDf):
-        result = dataDf
-        result["DynamicDataArray"] = result["DynamicDataArray"].apply(self.toFloatList)
-        return result
+# Функция для оценки прошедшего времени
+def elapsed(start = None):
+    if start == None:
+        print("0 sec")
+        return time.time()
+    else:
+        current = time.time()
+        print(str(current - start) + " sec")
+        return current
 
-#    def toString(self, floatArray):
-#        return reduce(lambda s,f: (s if (s=="") else s+",") + str(f), floatArray, "")
+# TODO
+# 1. Визуализация одного измерения (визуализация в ширину, по строке)
+# 2. Привязка оси Х к частотам
+# 3. Построение временных рядов для одного среза: агрегат, компонент, точка, направление, измерение, название измерения
+# 4. Визуализация одного/нескольких временных рядов (визуализация в длину, по столбцу)
+# 5. Расчет характеристик связи временных рядов
+# 6. Прогнозирование одного/нескольких временных рядов
+# 7. Построение временных рядов для определенной частоты с учетом того, что она "плавает"
 
-def readTables():
-    ld = UKLoadData()
-    # Файл для разписи результатов
-    outFileName = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pumps.xlsx")
-    if os.path.exists(outFileName): os.remove(outFileName)
+# Основная функция чтения и обработки данных
+# ld - UKLoadData()
+def readTables(ld):
+    timepoint = time.time()
     # Выбираем данные таблиц
-    trains = ld.readTableBuffered("dbo.Trains")                    # агрегаты (например, насосы)
+    print("Загрузка данных...")
+    trains = ld.readSqlTableBuffered("dbo.Trains")                    # агрегаты (например, насосы)
     # trainMechanisms пока не используется
-    #trainMechanisms = ld.readTableBuffered("dbo.TrainMechanisms") # механизмы агрегата (например, для насосов это ЭД и сам насос)
-    trainComponents = ld.readTableBuffered("dbo.TrainComponents")  # компоненты конкретного агрегата (например, Статор А э/д, Якорь А э/д, Ротор э/д, Подшипник №1, Подшипник №2)
+    #trainMechanisms = ld.readSqlTableBuffered("dbo.TrainMechanisms") # механизмы агрегата (например, для насосов это ЭД и сам насос)
+    trainComponents = ld.readSqlTableBuffered("dbo.TrainComponents")  # компоненты конкретного агрегата (например, Статор А э/д, Якорь А э/д, Ротор э/д, Подшипник №1, Подшипник №2)
     # mechModels пока не используется
-    #mechModels = ld.readTableBuffered("dbo.Mech_Models")          # модели механизмов (например, для насоса в поле Keyphasors хранится параметр "Частота вращения насоса"; в поле StaticParameter - "Число лопаток рабочего колеса", Units="шт", ValueType="8"; в поле Points - Name="1", Description="Коренной подшипник насоса")
-    compComponents = ld.readTableBuffered("dbo.Comp_Components")   # общее описание компонента (в том числе Points, FaultFrequencies) (например, "Подшипник качения")
-    points = ld.readTableBuffered("dbo.Points")                    # точки, в которых проходят измерения
-    measures = ld.readTableBuffered("dbo.Measures")                # измерения
+    #mechModels = ld.readSqlTableBuffered("dbo.Mech_Models")          # модели механизмов (например, для насоса в поле Keyphasors хранится параметр "Частота вращения насоса"; в поле StaticParameter - "Число лопаток рабочего колеса", Units="шт", ValueType="8"; в поле Points - Name="1", Description="Коренной подшипник насоса")
+    compComponents = ld.readSqlTableBuffered("dbo.Comp_Components")   # общее описание компонента (в том числе Points, FaultFrequencies) (например, "Подшипник качения")
+    points = ld.readSqlTableBuffered("dbo.Points")                    # точки, в которых проходят измерения
+    measures = ld.readSqlTableBuffered("dbo.Measures")                # измерения
     # Все данные измерений
-    convertersCSV = {"" : ld.toFloatList}
-    data = ld.readTableBuffered("dbo.Data", ld.dataSQLProcessing, convertersCSV)     # данные измерений
+    #data = ld.readSqlTableBuffered("dbo.Data", ld.dataSQLProcessing, {"DynamicDataArray" : ld.toFloatList})     # данные измерений
+    data = ld.readSqlTableBuffered("dbo.Data", None, {"DynamicData" : ld.evalStr})     # данные измерений
+    timepoint = elapsed(timepoint)
+    print("Объединение данных...")
+
     # Только самые новые из измерений
     #data = ld.readSql("select d.* from dbo.Data d \
     #                           left join (select [idMeasure], max([Date]) as lastDate from dbo.Data group by [idMeasure]) ld on (d.[idMeasure]=ld.[idMeasure] and d.[Date]=ld.[lastDate]) \
@@ -238,7 +264,7 @@ def readTables():
 
     # Нужные для соединения колонки
     colDict = dict() # Ключ - имя dataframe, значение - список имен колонок с их типами
-    colDict["data"]                           = [["idMeasure","int"], ["Date",""], ["DynamicDataArray",""], ["DynamicDataArrayLen","int"]]
+    colDict["data"]                           = [["idMeasure","int"], ["Date",""], ["DynamicData",""]]
     colDict["measures"]                       = [["idMeasure","int"], ["idPoint","int"], ["Name",""], ["Description",""]]
     colDict["points"]                         = [["idPoint","int"], ["idTrain","int"], ["Name",""], ["Description",""], ["Direction","int"]]
     colDict["trainComponentsBindingsPoints"]  = [["idTrainComponent","int"], ["CompIndex","int"], ["idPoint","int"], ["AdditionalData",""]]
@@ -254,14 +280,18 @@ def readTables():
     pointsCols = ld.severalColumns(points, colDict, "points")
     trainComponentsBindingsPointsCols = ld.severalColumns(trainComponentsBindingsPoints, colDict, "trainComponentsBindingsPoints")
     trainComponentsBindingsFaultFrequenciesCols = ld.severalColumns(trainComponentsBindingsFaultFrequencies, colDict, "trainComponentsBindingsFaultFrequencies")
-    print(trainComponentsBindingsFaultFrequenciesCols.head(10))
+    #print(trainComponentsBindingsFaultFrequenciesCols.head(10))
     compComponentsPointsCols = ld.severalColumns(compComponentsPoints, colDict, "compComponentsPoints")
     compComponentsFaultFrequenciesCols = ld.severalColumns(compComponentsFaultFrequencies, colDict, "compComponentsFaultFrequencies")
-    print(compComponentsFaultFrequenciesCols.head(10))
+    #print(compComponentsFaultFrequenciesCols.head(10))
     trainComponentsCols = ld.severalColumns(trainComponents, colDict, "trainComponents")
     trainsCols = ld.severalColumns(trains, colDict, "trains")
     
+    
     # Промежуточный вывод таблиц, если необходимо
+    # Файл для записи результатов
+    #outFileName = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pumps.xlsx")
+    #if os.path.exists(outFileName): os.remove(outFileName)
     #ld.writeToFile(outFileName, compComponentsFaultFrequenciesCols, "compComponentsFaultFrequencies", 2000)
     #ld.writeToFile(outFileName, trainComponentsBindingsFaultFrequenciesCols, "trainComponentsBindingsFaultFrequencies", 2000)
     del data, measures, points, trainComponentsBindingsPoints, trainComponentsBindingsFaultFrequencies, compComponentsPoints, compComponentsFaultFrequencies, trainComponents, trains
@@ -275,28 +305,53 @@ def readTables():
     dataMesuresPointsComponentsPoints = pd.merge(dataMesuresPoints, trainsAndComponentsWithBindingsAndPoints, how="left", left_on=["points_idPoint", "points_Direction"], right_on=["trainComponentsBindingsPoints_idPoint", "compComponentsPoints_Direction"])
     del trainsAndComponents, trainsAndComponentsWithBindings, trainsAndComponentsWithBindingsAndPoints, dataAndMesures, dataMesuresPoints
     
-    # Поправим типы колонок
-    
+    timepoint = elapsed(timepoint)
+    print("Загрузка данных завершена")
+
+    return dataMesuresPointsComponentsPoints
+
+def writeTimeseriesFiles(ld, dataMesuresPointsComponentsPoints):
+    print("Построение временных рядов...")
+    timepoint = time.time()
     # Группируем, чтобы получить временные ряды
     timeSeries = dict()
-    gbDf = ld.filterByStrOr(dataMesuresPointsComponentsPoints, "trains_Name", ["5.5-1G11"])
-    #print(dataMesuresPointsComponentsPoints.head(10))
-    #print(gbDf.head(10))
+    sumThreshold = 0.001 # отбрасывам измерения, где в данных одни нули или что-то к ним близкое
+    lenThreshold = 10    # отбрасываем такие точки агрегатов, по которым малеькая статистика (малое число наблюдений)
+    gbDf = ld.filterByStrOr(dataMesuresPointsComponentsPoints, "trains_Name", ["5.5-1G11"]) # Только данные насоса 5.5-1G11
     # Группировка: агрегат, компонент, точка, направление, измерение, название измерения
     groupByColumns = ["trains_idTrain", "trainComponents_idTrainComponent", "points_idPoint", "points_Direction", "measures_idMeasure", "measures_Name"]
-    tsColumns = ["data_Date", "data_DynamicDataArray", "data_DynamicDataArrayLen"]
+    tsColumns = ["data_Date", "data_DynamicData"]
     for key, groupDf in gbDf.groupby(groupByColumns):
         oneSeriesDf = groupDf[tsColumns]
-        oneSeriesDf["sum_abs"] = oneSeriesDf["data_DynamicDataArray"].apply(ld.calcSumAbs)
-        oneSeriesDf = oneSeriesDf[(oneSeriesDf["data_DynamicDataArrayLen"]>0) & (oneSeriesDf["sum_abs"]>0)]
-        if len(oneSeriesDf.index) > 0:
+        oneSeriesDf = ld.dataProcessing(oneSeriesDf, "data_DynamicData")
+        oneSeriesDf["sum_abs"] = oneSeriesDf["data_DynamicDataArray"].apply(lambda x: np.sum(np.abs(x)))
+        oneSeriesDf = oneSeriesDf[(oneSeriesDf["data_DynamicDataArrayLen"]>0) & (oneSeriesDf["sum_abs"]>=sumThreshold)]
+        if len(oneSeriesDf.index) >= lenThreshold:
             #oneSeriesDf["data_DynamicDataArray"] = oneSeriesDf["data_DynamicData"].apply(ld.toFloatArray)
             timeSeries[key] = oneSeriesDf
             keyInfo = ""
             for i in range(len(groupByColumns)):
                 keyInfo = ("" if keyInfo == "" else keyInfo + ", ") + groupByColumns[i] + "=" + str(key[i])
-            print(keyInfo)
-            print(timeSeries[key].head(10))
+            print(len(timeSeries.keys()), len(oneSeriesDf.index), np.max(oneSeriesDf["data_DynamicDataArrayLen"]), keyInfo)
+            # Запись временных рядов в файл
+            fileNameColumns = ["idTrain", "idTrainComponent", "idPoint", "Direction", "idMeasure"]
+            fileName = ""
+            for i in range(len(fileNameColumns)):
+                fileName = ("" if fileName == "" else fileName + "_") + fileNameColumns[i] + "=" + str(int(key[i]))
+            ld.writeCsvTable(oneSeriesDf, fileName)
+            #print(timeSeries[key].head(10))
+
+    timepoint = elapsed(timepoint)
+    print("Построение временных рядов завершено")
+
+    return
+
+def doPivotExcelFile(ld, dataMesuresPointsComponentsPoints):
+    print("Запись сводных Excel таблиц...")
+    timepoint = time.time()
+    # Файл для записи результатов
+    outFileName = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pumps.xlsx")
+    if os.path.exists(outFileName): os.remove(outFileName)
 
     # Изменяем колонки, чтобы сделать хорошую сводку
     dataMesuresPointsComponentsPoints["trainComponents_Name_Description"] = dataMesuresPointsComponentsPoints["trainComponents_Name"] + " " + dataMesuresPointsComponentsPoints["trainComponents_Description"]
@@ -312,7 +367,45 @@ def readTables():
     pTable = ld.doPivotTable(dataMesuresPointsComponentsPoints, pivotIndexColumns, pivotValuesColumns, "trains_Name", ["5.5-1G11"]) # "trains_Description", ["CNH-B"]
     
     # Запись в файл
-    #dataMesuresPointsComponentsPoints = dataMesuresPointsComponentsPoints.drop(["data_DynamicData"], axis=1)
-    #ld.writeToFile(outFileName, dataMesuresPointsComponentsPoints, "5.5-1G11", None, pTable)
+    dataMesuresPointsComponentsPoints = dataMesuresPointsComponentsPoints.drop(["data_DynamicData"], axis=1)
+    ld.writeToFile(outFileName, dataMesuresPointsComponentsPoints, "5.5-1G11", None, pTable)
 
-readTables()
+    timepoint = elapsed(timepoint)
+    print("Запись сводных Excel таблиц завершена")
+
+    return
+
+def readTimeseriesFiles(ld, fileNamesList):
+    timeSeries = dict()
+    print("Чтение временных рядов...")
+    timepoint = time.time()
+    for fileName in fileNamesList:        
+        key = list()
+        for pair in fileName.split("_"):
+            key.append(int(pair.split("=")[1]))
+        df = ld.readCsvTable(fileName + ".csv", {"data_DynamicDataArray" : ld.evalStr})
+        timeSeries[tuple(key)] = df
+
+
+    timepoint = elapsed(timepoint)
+    print("Чтение временных рядов завершено")
+
+    return timeSeries
+
+def main():
+    ld = UKLoadData()
+    # Чтение исходных данных (из БД или файлов) и формирование файлов с временными рядами
+    #dataMesuresPointsComponentsPoints = readTables(ld)
+    #writeTimeseriesFiles(ld, dataMesuresPointsComponentsPoints)
+    # Чтение файлов с временными рядами
+    timeSeries = readTimeseriesFiles(ld, 
+    ['idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252050',
+     'idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252051',
+     'idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252052'])
+
+    # Пока сводный файл не формируем
+    #doPivotExcelFile(ld, dataMesuresPointsComponentsPoints)
+
+    return
+
+main()
