@@ -14,6 +14,12 @@ import time
 import ast
 import numpy as np
 
+import chart_studio.plotly as py
+#import plotly.graph_obs as go
+from plotly.offline import iplot
+#import cufflinks
+#cufflinks.go_offline()
+
 # Общий класс для работы с БД (соединение, чтение таблиц, фильтрация)
 class LoadData:
     # Метод, используемый для создания объекта (contructor)
@@ -129,6 +135,15 @@ class LoadData:
                 ptWrite = pt if ptRows is None else df.head(ptRows)
                 ptWrite.to_excel(writer, sheet_name=ptSheetName)
         print("Запись в файл завершена")
+        return
+
+    def splitListColumn(self, df, columnName):
+        maxLen = np.max(df[columnName].apply(len))
+        colArr2 = df[columnName].apply(lambda ar: np.pad(np.array(ar), (0,maxLen), 'constant', constant_values=(0,np.NaN)))
+        arr2d = np.stack(colArr2.to_numpy())
+        for i in range(maxLen):
+            df[columnName+str(i)] = arr2d[:, i]
+        return df
 
 # Класс для логики, которая имеет специфику обработки базы UK
 class UKLoadData(LoadData):
@@ -188,15 +203,6 @@ def elapsed(start = None):
         current = time.time()
         print(str(current - start) + " sec")
         return current
-
-# TODO
-# 1. Визуализация одного измерения (визуализация в ширину, по строке)
-# 2. Привязка оси Х к частотам
-# 3. Построение временных рядов для одного среза: агрегат, компонент, точка, направление, измерение, название измерения
-# 4. Визуализация одного/нескольких временных рядов (визуализация в длину, по столбцу)
-# 5. Расчет характеристик связи временных рядов
-# 6. Прогнозирование одного/нескольких временных рядов
-# 7. Построение временных рядов для определенной частоты с учетом того, что она "плавает"
 
 # Основная функция чтения и обработки данных
 # ld - UKLoadData()
@@ -386,11 +392,42 @@ def readTimeseriesFiles(ld, fileNamesList):
         df = ld.readCsvTable(fileName + ".csv", {"data_DynamicDataArray" : ld.evalStr})
         timeSeries[tuple(key)] = df
 
-
     timepoint = elapsed(timepoint)
     print("Чтение временных рядов завершено")
 
     return timeSeries
+
+def processTimeseriesFiles(ld, timeSeries):
+    print("Обработка временных рядов...")
+    timepoint = time.time()
+    # Обработка датафреймов с разеделением временных рядов по отдельным колонкам
+    for _, df in timeSeries.items():
+        print(df.shape, list(df.columns))
+        df = ld.splitListColumn(df, "data_DynamicDataArray")
+    #for _, df in timeSeries.items():
+    #    print("new", df.shape)
+
+    timepoint = elapsed(timepoint)
+    print("Обработка временных рядов завершена")
+
+    return
+
+def showDiagram(df, dateColumn, dataColumn):
+    tds = df.set_index(dateColumn)
+    # Строим как временной ряд
+    tds[[dataColumn]].iplot(
+        y=dataColumn, mode='lines+markers', xTitle=dateColumn, yTitle=dataColumn,
+        text=dataColumn)
+    return
+
+# TODO
+# 1. Визуализация одного измерения (визуализация в ширину, по строке)
+# 2. Привязка оси Х к частотам
+# 3. Построение временных рядов для одного среза: агрегат, компонент, точка, направление, измерение, название измерения
+# 4. Визуализация одного/нескольких временных рядов (визуализация по строке, по столбцу)
+# 5. Расчет характеристик связи временных рядов
+# 6. Прогнозирование одного/нескольких временных рядов
+# 7. Построение временных рядов для определенной частоты с учетом того, что она "плавает"
 
 def main():
     ld = UKLoadData()
@@ -400,8 +437,15 @@ def main():
     # Чтение файлов с временными рядами
     timeSeries = readTimeseriesFiles(ld, 
     ['idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252050',
-     'idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252051',
-     'idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252052'])
+     #'idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252051',
+     #'idTrain=2156_idTrainComponent=726_idPoint=41084_Direction=1_idMeasure=252052'
+     ])
+
+    
+    #pd.set_option('display.width', 200)
+    processTimeseriesFiles(ld, timeSeries)
+    df = list(timeSeries.values())[0]
+    showDiagram(df, "data_Date", "data_DynamicDataArray100")
 
     # Пока сводный файл не формируем
     #doPivotExcelFile(ld, dataMesuresPointsComponentsPoints)
